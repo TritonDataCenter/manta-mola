@@ -1,0 +1,21 @@
+{
+        "name": "mola",
+        "description": "Manta Garbage Collection",
+        "version": "1.0.0",
+        "author": "Joyent (joyent.com)",
+        "private": true,
+        "dependencies": {
+                "assert-plus": "0.1.1",
+                "bunyan": "0.14.0",
+		"carrier": "0.1.7"
+        },
+        "devDependencies": {
+                "nodeunit": "0.7.4"
+        },
+	"engines": {
+	        "node": "~0.8"
+	},
+        "scripts": {
+                "start": "node ./server.js"
+        }
+}
