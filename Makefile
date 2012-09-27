@@ -30,9 +30,12 @@ JSL_FILES_NODE   = $(JS_FILES)
 JSSTYLE_FILES    = $(JS_FILES)
 JSSTYLE_FLAGS    = -f tools/jsstyle.conf
 
-
-NODE_PREBUILT_VERSION=v0.8.8
-NODE_PREBUILT_TAG=zone
+#
+# Variables
+#
+NAME                  = mola
+NODE_PREBUILT_VERSION = v0.8.8
+NODE_PREBUILT_TAG     = zone
 
 
 include ./tools/mk/Makefile.defs
@@ -43,6 +46,20 @@ else
 endif
 include ./tools/mk/Makefile.node_deps.defs
 include ./tools/mk/Makefile.smf.defs
+
+#
+# MG Variables
+#
+RELEASE_TARBALL         := $(NAME)-pkg-$(STAMP).tar.bz2
+ROOT                    := $(shell pwd)
+TMPDIR                  := /tmp/$(STAMP)
+
+#
+# v8plus uses the CTF tools as part of its build, but they can safely be
+# overridden here so that this works in dev zones without them.
+# See marlin.git Makefile.
+#
+NPM_ENV		 = MAKE_OVERRIDES="CTFCONVERT=/bin/true CTFMERGE=/bin/true"
 
 #
 # Repo-specific targets
@@ -58,6 +75,32 @@ CLEAN_FILES += $(NODEUNIT) ./node_modules/nodeunit
 .PHONY: test
 test: $(NODEUNIT)
 	$(NODEUNIT) test/*.test.js
+
+.PHONY: release
+release: all docs $(SMF_MANIFESTS)
+	@echo "Building $(RELEASE_TARBALL)"
+	@mkdir -p $(TMPDIR)/root/opt/smartdc/$(NAME)
+	@mkdir -p $(TMPDIR)/site
+	@touch $(TMPDIR)/site/.do-not-delete-me
+	@mkdir -p $(TMPDIR)/root
+	@mkdir -p $(TMPDIR)/root/opt/smartdc/$(NAME)/etc
+	cp -r   $(ROOT)/build \
+		$(ROOT)/index.js \
+		$(ROOT)/lib \
+		$(ROOT)/node_modules \
+		$(ROOT)/package.json \
+		$(TMPDIR)/root/opt/smartdc/$(NAME)
+	(cd $(TMPDIR) && $(TAR) -jcf $(ROOT)/$(RELEASE_TARBALL) root site)
+	@rm -rf $(TMPDIR)
+
+.PHONY: publish
+publish: release
+	@if [[ -z "$(BITS_DIR)" ]]; then \
+		@echo "error: 'BITS_DIR' must be set for 'publish' target"; \
+		exit 1; \
+	fi
+	mkdir -p $(BITS_DIR)/$(NAME)
+	cp $(ROOT)/$(RELEASE_TARBALL) $(BITS_DIR)/$(NAME)/$(RELEASE_TARBALL)
 
 include ./tools/mk/Makefile.deps
 ifeq ($(shell uname -s),SunOS)
