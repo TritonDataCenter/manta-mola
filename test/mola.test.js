@@ -14,7 +14,7 @@ var test = helper.test;
 
 ///-- Tests
 
-test('test: foo', function(t) {
+test('test: foo', function (t) {
         t.ok(true);
         t.end();
 });
