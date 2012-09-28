@@ -81,6 +81,6 @@ test('test: sample schema, garbage', function (t) {
 
         schema_reader.on('object', onObject);
         schema_reader.on('error', function (err) {
-                error = true;
+                error = err.line_number === 3;
         });
 });
