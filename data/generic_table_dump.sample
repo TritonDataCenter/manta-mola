@@ -1,0 +1,3 @@
+{"name":"table","keys":["id","string","object","nullKey"]}
+{"entry":["1","string1","{\"obj1\":\"objval1\"}","\\N"]}
+{"entry":["2","string2","{\"obj2\":\"objval2\"}","\\N"]}
