@@ -60,3 +60,27 @@ test('test: sample schema, on style', function (t) {
 
         schema_reader.on('object', onObject);
 });
+
+
+test('test: sample schema, garbage', function (t) {
+        var file_name = 'data/generic_table_dump_garbage.sample';
+        var read_stream = fs.createReadStream(file_name, {encoding: 'ascii'});
+        var line = 0;
+        var error = false;
+
+        var schema_reader = lib.createSchemaReader(read_stream);
+
+        function onObject(obj) {
+                ++line;
+                checkSampleObject(t, line, obj);
+                if (line >= 2) {
+                        t.ok(error);
+                        t.end();
+                }
+        }
+
+        schema_reader.on('object', onObject);
+        schema_reader.on('error', function (err) {
+                error = true;
+        });
+});
