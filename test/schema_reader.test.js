@@ -27,7 +27,7 @@ function checkSampleObject(t, n, obj) {
 ///--- Tests
 
 test('test: sample schema', function (t) {
-        var file_name = 'data/generic_table_dump.sample';
+        var file_name = 'data/generic_table/dump.sample';
         var read_stream = fs.createReadStream(file_name, {encoding: 'ascii'});
         var line = 0;
 
@@ -43,7 +43,7 @@ test('test: sample schema', function (t) {
 
 
 test('test: sample schema, on style', function (t) {
-        var file_name = 'data/generic_table_dump.sample';
+        var file_name = 'data/generic_table/dump.sample';
         var read_stream = fs.createReadStream(file_name, {encoding: 'ascii'});
         var line = 0;
 
@@ -63,7 +63,7 @@ test('test: sample schema, on style', function (t) {
 
 
 test('test: sample schema, garbage', function (t) {
-        var file_name = 'data/generic_table_dump_garbage.sample';
+        var file_name = 'data/generic_table/dump_garbage.sample';
         var read_stream = fs.createReadStream(file_name, {encoding: 'ascii'});
         var line = 0;
         var error = false;

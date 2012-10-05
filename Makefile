@@ -74,7 +74,7 @@ CLEAN_FILES += $(NODEUNIT) ./node_modules/nodeunit
 
 .PHONY: test
 test: $(NODEUNIT)
-	$(NODEUNIT) test/*.test.js
+	find test/ -name '*.test.js' | xargs -n 1 $(NODEUNIT)
 
 .PHONY: release
 release: all docs $(SMF_MANIFESTS)
