@@ -260,3 +260,43 @@ test('test: dead object, close after grace period', function (t) {
                 t.end();
         });
 });
+
+test('test: dead object, middle of other not-quite-deads', function (t) {
+        var now = Date.now();
+        var recordDate = new Date(now - GRACE_PERIOD_MILLIS - 1000);
+        var data =
+                dead('1232', new Date(now), MORAY_2) +
+                dead('1233', new Date(now), MORAY_1) +
+                dead('1234', recordDate, MORAY_1) +
+                dead('1235', new Date(now), MORAY_2);
+        var stream = new DummyStream(data);
+        var gc = lib.createGarbageCollector(stream);
+        var morayCalled = 0;
+        var makoCalled = 0;
+        var makos = [];
+
+        gc.on('moray', function (moray) {
+                ++morayCalled;
+                checkMoray(moray, MORAY_1, '1234', recordDate);
+        });
+
+        gc.on('mako', function (mako) {
+                ++makoCalled;
+                makos.push(mako);
+        });
+
+        gc.on('end', function () {
+                for (var i = 1; i <= 2; ++i) {
+                        var mako = makos[i - 1];
+                        var mako_url = 'http://' + i + '.stor.coal.joyent.us';
+                        assert.equal(mako_url, mako.url);
+                        assert.equal('server', mako.server_uuid);
+                        assert.equal(i, mako.zone_uuid);
+                        assert.equal(OWNER, mako.owner);
+                        assert.equal('1234', mako.objectId);
+                }
+                assert.equal(makoCalled, 2);
+                assert.equal(morayCalled, 1);
+                t.end();
+        });
+});
