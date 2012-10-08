@@ -13,7 +13,7 @@ var util = require('util');
 var GRACE_PERIOD_MILLIS = 60 * 60 * 24 * 2 * 1000; //2 days
 var MORAY_1 = '1.moray.coal.joyent.us';
 var MORAY_2 = '2.moray.coal.joyent.us';
-var PAST_GRACE_PERIOD_MILLIS = 60 * 60 * 24 * 2 * 1000 + 1000;
+var OWNER = 'owner-uuid';
 var test = helper.test;
 
 
@@ -48,12 +48,11 @@ function live(objectId, date) {
 }
 
 function dead(objectId, date, moray_hostname) {
-        var owner = 'owner-uuid';
         var obj = {
-                'dirname': '/' + owner + '/stor',
-                'key': '/' + owner + '/stor/key-1',
+                'dirname': '/' + OWNER + '/stor',
+                'key': '/' + OWNER + '/stor/key-1',
                 'mtime': date.getTime(),
-                'owner': owner,
+                'owner': OWNER,
                 'type': 'object',
                 'contentLength': 3060,
                 'contentMD5': 'l/niJjQMwQsp/TdHOYIgXg==',
@@ -72,6 +71,12 @@ function dead(objectId, date, moray_hostname) {
         };
         return (objectId + '\t' + date.toISOString() + '\tdead\t' +
                 JSON.stringify(obj) + '\t' + moray_hostname + '\n');
+}
+
+function checkMoray(moray, moray_hostname, objectId, date) {
+        assert.equal(moray.moray_hostname, moray_hostname);
+        assert.equal(moray.objectId, objectId);
+        assert.equal(moray.date - 0, date - 0);
 }
 
 
@@ -100,14 +105,20 @@ test('test: all live', function (t) {
                 live('4321', new Date(now));
         var stream = new DummyStream(data);
         var gc = lib.createGarbageCollector(stream);
-        var actionsCalled = false;
+        var morayCalled = false;
+        var makoCalled = false;
 
-        gc.on('actions', function (actions) {
-                actionsCalled = true;
+        gc.on('moray', function (moray) {
+                morayCalled = true;
+        });
+
+        gc.on('mako', function (mako) {
+                makoCalled = true;
         });
 
         gc.on('end', function () {
-                t.ok(!actionsCalled);
+                t.ok(!morayCalled);
+                t.ok(!makoCalled);
                 t.end();
         });
 });
@@ -119,18 +130,24 @@ test('test: single moray cleanup, live object after', function (t) {
                 live('1234', new Date(now + 2000));
         var stream = new DummyStream(data);
         var gc = lib.createGarbageCollector(stream);
+        var morayCalled = 0;
+        var makoCalled = false;
 
-        gc.on('actions', function (actions) {
-                assert.equal(actions.length, 1, 'Actions.length != 1');
-                var action = actions[0];
-                assert.equal(action.type, 'moray');
-                assert.equal(action.moray_hostname, MORAY_1);
-                assert.equal(action.objectId, '1234');
+        gc.on('moray', function (moray) {
+                ++morayCalled;
+                assert.equal(moray.moray_hostname, MORAY_1);
+                assert.equal(moray.objectId, '1234');
                 var dateCheck = (new Date(now + 1000));
-                assert.equal(action.date - 0, dateCheck - 0);
+                assert.equal(moray.date - 0, dateCheck - 0);
+        });
+
+        gc.on('mako', function (mako) {
+                makoCalled = true;
         });
 
         gc.on('end', function () {
+                assert.equal(morayCalled, 1);
+                assert.ok(!makoCalled);
                 t.end();
         });
 });
@@ -142,18 +159,21 @@ test('test: single moray cleanup, dead object after', function (t) {
                 dead('1234', new Date(now + 2000), MORAY_2);
         var stream = new DummyStream(data);
         var gc = lib.createGarbageCollector(stream);
+        var morayCalled = 0;
+        var makoCalled = false;
 
-        gc.on('actions', function (actions) {
-                assert.equal(actions.length, 1, 'Actions.length != 1');
-                var action = actions[0];
-                assert.equal(action.type, 'moray');
-                assert.equal(action.moray_hostname, MORAY_1);
-                assert.equal(action.objectId, '1234');
-                var dateCheck = (new Date(now + 1000));
-                assert.equal(action.date - 0, dateCheck - 0);
+        gc.on('moray', function (moray) {
+                ++morayCalled;
+                checkMoray(moray, MORAY_1, '1234', new Date(now + 1000));
+        });
+
+        gc.on('mako', function (mako) {
+                makoCalled = true;
         });
 
         gc.on('end', function () {
+                assert.equal(morayCalled, 1);
+                assert.ok(!makoCalled);
                 t.end();
         });
 });
@@ -163,14 +183,20 @@ test('test: dead object, before grace period', function (t) {
         var data = dead('1234', new Date(now), MORAY_1);
         var stream = new DummyStream(data);
         var gc = lib.createGarbageCollector(stream);
-        var actionsCalled = false;
+        var morayCalled = false;
+        var makoCalled = false;
 
-        gc.on('actions', function (actions) {
-                actionsCalled = true;
+        gc.on('moray', function (moray) {
+                morayCalled = true;
+        });
+
+        gc.on('mako', function (mako) {
+                makoCalled = true;
         });
 
         gc.on('end', function () {
-                t.ok(!actionsCalled);
+                t.ok(!makoCalled);
+                t.ok(!morayCalled);
                 t.end();
         });
 });
@@ -181,55 +207,56 @@ test('test: dead object, close before grace period', function (t) {
                         MORAY_1);
         var stream = new DummyStream(data);
         var gc = lib.createGarbageCollector(stream);
-        var actionsCalled = false;
+        var morayCalled = false;
+        var makoCalled = false;
 
-        gc.on('actions', function (actions) {
-                actionsCalled = true;
+        gc.on('moray', function (moray) {
+                morayCalled = true;
+        });
+
+        gc.on('mako', function (mako) {
+                makoCalled = true;
         });
 
         gc.on('end', function () {
-                t.ok(!actionsCalled);
+                t.ok(!makoCalled);
+                t.ok(!morayCalled);
                 t.end();
         });
 });
 
 test('test: dead object, close after grace period', function (t) {
         var now = Date.now();
-        var data = dead('1234', new Date(now - GRACE_PERIOD_MILLIS - 1000),
-                     MORAY_1);
+        var recordDate = new Date(now - GRACE_PERIOD_MILLIS - 1000);
+        var data = dead('1234', recordDate, MORAY_1);
         var stream = new DummyStream(data);
         var gc = lib.createGarbageCollector(stream);
-        var actionsCalled = false;
+        var morayCalled = 0;
+        var makoCalled = 0;
+        var makos = [];
 
-        gc.on('actions', function (actions) {
-                actionsCalled = true;
+        gc.on('moray', function (moray) {
+                ++morayCalled;
+                checkMoray(moray, MORAY_1, '1234', recordDate);
+        });
+
+        gc.on('mako', function (mako) {
+                ++makoCalled;
+                makos.push(mako);
         });
 
         gc.on('end', function () {
-                t.ok(actionsCalled);
+                for (var i = 1; i <= 2; ++i) {
+                        var mako = makos[i - 1];
+                        var mako_url = 'http://' + i + '.stor.coal.joyent.us';
+                        assert.equal(mako_url, mako.url);
+                        assert.equal('server', mako.server_uuid);
+                        assert.equal(i, mako.zone_uuid);
+                        assert.equal(OWNER, mako.owner);
+                        assert.equal('1234', mako.objectId);
+                }
+                assert.equal(makoCalled, 2);
+                assert.equal(morayCalled, 1);
                 t.end();
         });
 });
-
-/*
-test('test: dead object', function (t) {
-        var now = Date.now();
-        var data = dead('1234', new Date(now - PAST_GRACE_PERIOD_MILLIS),
-                     MORAY_1);
-        var stream = new DummyStream(data);
-        var gc = lib.createGarbageCollector(stream);
-
-        gc.on('actions', function (actions) {
-                console.log(JSON.stringify(actions));
-        });
-
-        gc.on('end', function () {
-                t.end();
-        });
-});
-*/
-
-//all objects to gc- all dead and past grace period
-//no object to gc- all dead but before grace period
-//last object should be gced
-//complicated
