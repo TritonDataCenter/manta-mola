@@ -49,25 +49,33 @@ function live(objectId, date) {
 
 function dead(objectId, date, moray_hostname) {
         var obj = {
-                'dirname': '/' + OWNER + '/stor',
-                'key': '/' + OWNER + '/stor/key-1',
-                'mtime': date.getTime(),
-                'owner': OWNER,
-                'type': 'object',
-                'contentLength': 3060,
-                'contentMD5': 'l/niJjQMwQsp/TdHOYIgXg==',
-                'contentType': 'application/octet-stream',
-                'etag': objectId,
-                'objectId': objectId,
-                'sharks': [ {
-                        'url': 'http://1.stor.coal.joyent.us',
-                        'server_uuid': 'server',
-                        'zone_uuid': '1'
-                }, {
-                        'url': 'http://2.stor.coal.joyent.us',
-                        'server_uuid': 'server',
-                        'zone_uuid': '2'
-                }]
+                '__table': 'manta_delete_log',
+                '_id': '1',
+                '_key': '/' + objectId + '/' + date.getTime(),
+                '_value': {
+                        'dirname': '/' + OWNER + '/stor',
+                        'key': '/' + OWNER + '/stor/key-1',
+                        'mtime': date.getTime(),
+                        'owner': OWNER,
+                        'type': 'object',
+                        'contentLength': 3060,
+                        'contentMD5': 'l/niJjQMwQsp/TdHOYIgXg==',
+                        'contentType': 'application/octet-stream',
+                        'etag': objectId,
+                        'objectId': objectId,
+                        'sharks': [ {
+                                'url': 'http://1.stor.coal.joyent.us',
+                                'server_uuid': 'server',
+                                'zone_uuid': '1'
+                        }, {
+                                'url': 'http://2.stor.coal.joyent.us',
+                                'server_uuid': 'server',
+                                'zone_uuid': '2'
+                        }]
+                },
+                '_etag': 'C0A51EFB',
+                '_mtime': date.getTime(),
+                'objectid': objectId
         };
         return (objectId + '\t' + date.toISOString() + '\tdead\t' +
                 JSON.stringify(obj) + '\t' + moray_hostname + '\n');
