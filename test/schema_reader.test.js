@@ -27,11 +27,11 @@ function checkSampleObject(t, n, obj) {
 ///--- Tests
 
 test('test: sample schema', function (t) {
-        var file_name = 'data/generic_table/dump.sample';
-        var read_stream = fs.createReadStream(file_name, {encoding: 'ascii'});
+        var fileName = 'data/generic_table/dump.sample';
+        var readStream = fs.createReadStream(fileName, {encoding: 'ascii'});
         var line = 0;
 
-        lib.createSchemaReader(read_stream, function (obj) {
+        lib.createSchemaReader(readStream, function (obj) {
                 ++line;
                 checkSampleObject(t, line, obj);
                 if (line >= 2) {
@@ -43,11 +43,11 @@ test('test: sample schema', function (t) {
 
 
 test('test: sample schema, on style', function (t) {
-        var file_name = 'data/generic_table/dump.sample';
-        var read_stream = fs.createReadStream(file_name, {encoding: 'ascii'});
+        var fileName = 'data/generic_table/dump.sample';
+        var readStream = fs.createReadStream(fileName, {encoding: 'ascii'});
         var line = 0;
 
-        var schema_reader = lib.createSchemaReader(read_stream);
+        var schemaReader = lib.createSchemaReader(readStream);
 
         function onObject(obj) {
                 ++line;
@@ -58,17 +58,17 @@ test('test: sample schema, on style', function (t) {
                 }
         }
 
-        schema_reader.on('object', onObject);
+        schemaReader.on('object', onObject);
 });
 
 
 test('test: sample schema, garbage', function (t) {
-        var file_name = 'data/generic_table/dump_garbage.sample';
-        var read_stream = fs.createReadStream(file_name, {encoding: 'ascii'});
+        var fileName = 'data/generic_table/dump_garbage.sample';
+        var readStream = fs.createReadStream(fileName, {encoding: 'ascii'});
         var line = 0;
         var error = false;
 
-        var schema_reader = lib.createSchemaReader(read_stream);
+        var schemaReader = lib.createSchemaReader(readStream);
 
         function onObject(obj) {
                 ++line;
@@ -79,8 +79,8 @@ test('test: sample schema, garbage', function (t) {
                 }
         }
 
-        schema_reader.on('object', onObject);
-        schema_reader.on('error', function (err) {
+        schemaReader.on('object', onObject);
+        schemaReader.on('error', function (err) {
                 error = err.line && err.line.number === 3 &&
                         err.line.data === 'GARBAGEGARBAGE';
         });

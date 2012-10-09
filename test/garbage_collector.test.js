@@ -47,7 +47,7 @@ function live(objectId, date) {
         return (objectId + '\t' + date.toISOString() + '\tlive\n');
 }
 
-function dead(objectId, date, moray_hostname) {
+function dead(objectId, date, morayHostname) {
         var obj = {
                 '__table': 'manta_delete_log',
                 '_id': '1',
@@ -78,11 +78,11 @@ function dead(objectId, date, moray_hostname) {
                 'objectid': objectId
         };
         return (objectId + '\t' + date.toISOString() + '\tdead\t' +
-                JSON.stringify(obj) + '\t' + moray_hostname + '\n');
+                JSON.stringify(obj) + '\t' + morayHostname + '\n');
 }
 
-function checkMoray(moray, moray_hostname, objectId, date) {
-        assert.equal(moray.moray_hostname, moray_hostname);
+function checkMoray(moray, morayHostname, objectId, date) {
+        assert.equal(moray.morayHostname, morayHostname);
         assert.equal(moray.objectId, objectId);
         assert.equal(moray.date - 0, date - 0);
 }
@@ -143,7 +143,7 @@ test('test: single moray cleanup, live object after', function (t) {
 
         gc.on('moray', function (moray) {
                 ++morayCalled;
-                assert.equal(moray.moray_hostname, MORAY_1);
+                assert.equal(moray.morayHostname, MORAY_1);
                 assert.equal(moray.objectId, '1234');
                 var dateCheck = (new Date(now + 1000));
                 assert.equal(moray.date - 0, dateCheck - 0);
@@ -256,10 +256,10 @@ test('test: dead object, close after grace period', function (t) {
         gc.on('end', function () {
                 for (var i = 1; i <= 2; ++i) {
                         var mako = makos[i - 1];
-                        var mako_url = 'http://' + i + '.stor.coal.joyent.us';
-                        assert.equal(mako_url, mako.url);
-                        assert.equal('server', mako.server_uuid);
-                        assert.equal(i, mako.zone_uuid);
+                        var makoUrl = 'http://' + i + '.stor.coal.joyent.us';
+                        assert.equal(makoUrl, mako.url);
+                        assert.equal('server', mako.serverUuid);
+                        assert.equal(i, mako.zoneUuid);
                         assert.equal(OWNER, mako.owner);
                         assert.equal('1234', mako.objectId);
                 }
@@ -296,10 +296,10 @@ test('test: dead object, middle of other not-quite-deads', function (t) {
         gc.on('end', function () {
                 for (var i = 1; i <= 2; ++i) {
                         var mako = makos[i - 1];
-                        var mako_url = 'http://' + i + '.stor.coal.joyent.us';
-                        assert.equal(mako_url, mako.url);
-                        assert.equal('server', mako.server_uuid);
-                        assert.equal(i, mako.zone_uuid);
+                        var makoUrl = 'http://' + i + '.stor.coal.joyent.us';
+                        assert.equal(makoUrl, mako.url);
+                        assert.equal('server', mako.serverUuid);
+                        assert.equal(i, mako.zoneUuid);
                         assert.equal(OWNER, mako.owner);
                         assert.equal('1234', mako.objectId);
                 }
