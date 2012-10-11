@@ -1,9 +1,9 @@
 //Copyright 2012 Joyent, Inc. All rights reserved.
 
 var assert = require('assert-plus');
-var events = require('events');
 var helper = require('./helper.js');
 var lib = require('../lib');
+var MemoryStream = require('memorystream');
 var util = require('util');
 
 
@@ -15,29 +15,6 @@ var MORAY_1 = '1.moray.coal.joyent.us';
 var MORAY_2 = '2.moray.coal.joyent.us';
 var OWNER = 'owner-uuid';
 var test = helper.test;
-
-
-
-///--- Helpers
-
-function DummyStream(data, listener) {
-        var self = this;
-
-        if (listener) {
-                self.addListener('data', listener);
-                self.addListener('end', listener);
-        }
-
-        self.setEncoding = function () {};
-
-        process.nextTick(function () {
-                self.emit('data', data);
-                self.emit('end');
-        });
-}
-
-util.inherits(DummyStream, events.EventEmitter);
-
 
 
 
@@ -91,27 +68,12 @@ function checkMoray(moray, morayHostname, objectId, date) {
 
 ///--- Tests
 
-test('test: dummy stream', function (t) {
-        var stream = new DummyStream('echo');
-        var dataRead = false;
-
-        stream.on('data', function (d) {
-                assert.equal(d, 'echo');
-                dataRead = true;
-        });
-
-        stream.on('end', function () {
-                t.ok(dataRead);
-                t.end();
-        });
-});
-
 test('test: all live', function (t) {
         var now = Date.now();
         var data = live('1234', new Date(now)) +
                 live('1234', new Date(now + 1000)) +
                 live('4321', new Date(now));
-        var stream = new DummyStream(data);
+        var stream = new MemoryStream(data);
         var gc = lib.createGarbageCollector(stream);
         var morayCalled = false;
         var makoCalled = false;
@@ -129,6 +91,10 @@ test('test: all live', function (t) {
                 t.ok(!makoCalled);
                 t.end();
         });
+
+        process.nextTick(function () {
+                stream.end();
+        });
 });
 
 test('test: single moray cleanup, live object after', function (t) {
@@ -136,7 +102,7 @@ test('test: single moray cleanup, live object after', function (t) {
         var data = live('1234', new Date(now)) +
                 dead('1234', new Date(now + 1000), MORAY_1) +
                 live('1234', new Date(now + 2000));
-        var stream = new DummyStream(data);
+        var stream = new MemoryStream(data);
         var gc = lib.createGarbageCollector(stream);
         var morayCalled = 0;
         var makoCalled = false;
@@ -158,6 +124,10 @@ test('test: single moray cleanup, live object after', function (t) {
                 assert.ok(!makoCalled);
                 t.end();
         });
+
+        process.nextTick(function () {
+                stream.end();
+        });
 });
 
 test('test: single moray cleanup, dead object after', function (t) {
@@ -165,7 +135,7 @@ test('test: single moray cleanup, dead object after', function (t) {
         var data = live('1234', new Date(now)) +
                 dead('1234', new Date(now + 1000), MORAY_1) +
                 dead('1234', new Date(now + 2000), MORAY_2);
-        var stream = new DummyStream(data);
+        var stream = new MemoryStream(data);
         var gc = lib.createGarbageCollector(stream);
         var morayCalled = 0;
         var makoCalled = false;
@@ -184,12 +154,16 @@ test('test: single moray cleanup, dead object after', function (t) {
                 assert.ok(!makoCalled);
                 t.end();
         });
+
+        process.nextTick(function () {
+                stream.end();
+        });
 });
 
 test('test: dead object, before grace period', function (t) {
         var now = Date.now();
         var data = dead('1234', new Date(now), MORAY_1);
-        var stream = new DummyStream(data);
+        var stream = new MemoryStream(data);
         var gc = lib.createGarbageCollector(stream);
         var morayCalled = false;
         var makoCalled = false;
@@ -206,6 +180,10 @@ test('test: dead object, before grace period', function (t) {
                 t.ok(!makoCalled);
                 t.ok(!morayCalled);
                 t.end();
+        });
+
+        process.nextTick(function () {
+                stream.end();
         });
 });
 
@@ -213,7 +191,7 @@ test('test: dead object, close before grace period', function (t) {
         var now = Date.now();
         var data = dead('1234', new Date(now - GRACE_PERIOD_MILLIS + 1000),
                         MORAY_1);
-        var stream = new DummyStream(data);
+        var stream = new MemoryStream(data);
         var gc = lib.createGarbageCollector(stream);
         var morayCalled = false;
         var makoCalled = false;
@@ -231,13 +209,17 @@ test('test: dead object, close before grace period', function (t) {
                 t.ok(!morayCalled);
                 t.end();
         });
+
+        process.nextTick(function () {
+                stream.end();
+        });
 });
 
 test('test: dead object, close after grace period', function (t) {
         var now = Date.now();
         var recordDate = new Date(now - GRACE_PERIOD_MILLIS - 1000);
         var data = dead('1234', recordDate, MORAY_1);
-        var stream = new DummyStream(data);
+        var stream = new MemoryStream(data);
         var gc = lib.createGarbageCollector(stream);
         var morayCalled = 0;
         var makoCalled = 0;
@@ -266,6 +248,10 @@ test('test: dead object, close after grace period', function (t) {
                 assert.equal(makoCalled, 2);
                 assert.equal(morayCalled, 1);
                 t.end();
+        });
+
+        process.nextTick(function () {
+                stream.end();
         });
 });
 
@@ -277,7 +263,7 @@ test('test: dead object, middle of other not-quite-deads', function (t) {
                 dead('1233', new Date(now), MORAY_1) +
                 dead('1234', recordDate, MORAY_1) +
                 dead('1235', new Date(now), MORAY_2);
-        var stream = new DummyStream(data);
+        var stream = new MemoryStream(data);
         var gc = lib.createGarbageCollector(stream);
         var morayCalled = 0;
         var makoCalled = 0;
@@ -307,4 +293,9 @@ test('test: dead object, middle of other not-quite-deads', function (t) {
                 assert.equal(morayCalled, 1);
                 t.end();
         });
+
+        process.nextTick(function () {
+                stream.end();
+        });
 });
+

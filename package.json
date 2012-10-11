@@ -8,6 +8,7 @@
                 "assert-plus": "0.1.1",
                 "bunyan": "0.14.0",
 		"carrier": "0.1.7",
+		"memorystream": "0.2.0",
 		"posix-getopt": "1.0.0"
         },
         "devDependencies": {
