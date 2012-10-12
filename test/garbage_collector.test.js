@@ -298,4 +298,3 @@ test('test: dead object, middle of other not-quite-deads', function (t) {
                 stream.end();
         });
 });
-
