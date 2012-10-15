@@ -24,6 +24,7 @@ function live(objectId, date) {
         return (objectId + '\t' + date.toISOString() + '\tlive\n');
 }
 
+
 function dead(objectId, date, morayHostname) {
         var obj = {
                 '__table': 'manta_delete_log',
@@ -57,6 +58,7 @@ function dead(objectId, date, morayHostname) {
         return (objectId + '\t' + date.toISOString() + '\tdead\t' +
                 JSON.stringify(obj) + '\t' + morayHostname + '\n');
 }
+
 
 function checkMoray(moray, morayHostname, objectId, date) {
         assert.equal(moray.morayHostname, morayHostname);
@@ -97,6 +99,7 @@ test('test: all live', function (t) {
         });
 });
 
+
 test('test: single moray cleanup, live object after', function (t) {
         var now = Date.now();
         var data = live('1234', new Date(now)) +
@@ -130,6 +133,7 @@ test('test: single moray cleanup, live object after', function (t) {
         });
 });
 
+
 test('test: single moray cleanup, dead object after', function (t) {
         var now = Date.now();
         var data = live('1234', new Date(now)) +
@@ -160,6 +164,7 @@ test('test: single moray cleanup, dead object after', function (t) {
         });
 });
 
+
 test('test: dead object, before grace period', function (t) {
         var now = Date.now();
         var data = dead('1234', new Date(now), MORAY_1);
@@ -186,6 +191,7 @@ test('test: dead object, before grace period', function (t) {
                 stream.end();
         });
 });
+
 
 test('test: dead object, close before grace period', function (t) {
         var now = Date.now();
@@ -214,6 +220,7 @@ test('test: dead object, close before grace period', function (t) {
                 stream.end();
         });
 });
+
 
 test('test: dead object, close after grace period', function (t) {
         var now = Date.now();
@@ -254,6 +261,7 @@ test('test: dead object, close after grace period', function (t) {
                 stream.end();
         });
 });
+
 
 test('test: dead object, middle of other not-quite-deads', function (t) {
         var now = Date.now();

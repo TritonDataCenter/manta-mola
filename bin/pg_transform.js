@@ -42,6 +42,7 @@ function parseOptions() {
         return (opts);
 }
 
+
 function usage(msg) {
         if (msg) {
                 console.error(msg);

@@ -70,6 +70,7 @@ test('test: tranform live', function (t) {
         });
 });
 
+
 test('test: transform dead', function (t) {
         var fileName = 'data/pg_rt_test/2012-10-05-16-00-02-manta_delete_log';
         var readStream = fs.createReadStream(fileName, {encoding: 'ascii'});
@@ -97,6 +98,7 @@ test('test: transform dead', function (t) {
                 t.end();
         });
 });
+
 
 test('test: transform dead, discard newest entries', function (t) {
         var fileName = 'data/pg_rt_test/2012-10-05-16-00-02-manta_delete_log';

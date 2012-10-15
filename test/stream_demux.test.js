@@ -86,6 +86,24 @@ test('test: vanilla stream demux in memory', function (t) {
         });
 });
 
+
+test('test: test bucketizing', function (t) {
+        var opts = {
+                data: 'a\nb\na\na\nb'
+        };
+        testDualInMemory(opts, function (err, res) {
+                if (err) {
+                        assert.fail(err);
+                }
+                //If the hashing algorithm changes, these will need
+                // to change as well.
+                assert.equal('b\nb\n', res.outputData1);
+                assert.equal('a\na\na\n', res.outputData2);
+                t.end();
+        });
+});
+
+
 test('test: stream demux, custom key selector', function (t) {
         var data = 'a|1\nb|2\nc|3\nd|4\ne|5';
         var keyFromLine = function (line) {
@@ -108,6 +126,7 @@ test('test: stream demux, custom key selector', function (t) {
                 t.end();
         });
 });
+
 
 test('test: stream demux, vowels', function (t) {
         var data = 'a|1\nb|2\nc|3\nd|4\ne|5';
@@ -140,6 +159,7 @@ test('test: stream demux, vowels', function (t) {
                 t.end();
         });
 });
+
 
 test('test: file demux, evens and odds', function (t) {
         var fileName = './data/stream_demux/numbers.txt';
