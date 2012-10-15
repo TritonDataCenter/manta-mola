@@ -85,7 +85,8 @@ release: all docs $(SMF_MANIFESTS)
 	@touch $(TMPDIR)/site/.do-not-delete-me
 	@mkdir -p $(TMPDIR)/root
 	@mkdir -p $(TMPDIR)/root/opt/smartdc/$(NAME)/etc
-	cp -r   $(ROOT)/build \
+	cp -r   $(ROOT)/bin \
+		$(ROOT)/build \
 		$(ROOT)/index.js \
 		$(ROOT)/lib \
 		$(ROOT)/node_modules \

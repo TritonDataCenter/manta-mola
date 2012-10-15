@@ -9,6 +9,7 @@
                 "bunyan": "0.14.0",
 		"carrier": "0.1.7",
 		"memorystream": "0.2.0",
+		"node-manta": "git+ssh://git@git.joyent.com:node-manta.git#master",
 		"posix-getopt": "1.0.0"
         },
         "devDependencies": {
