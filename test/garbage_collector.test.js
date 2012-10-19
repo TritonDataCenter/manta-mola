@@ -76,7 +76,7 @@ test('test: all live', function (t) {
                 live('1234', new Date(now + 1000)) +
                 live('4321', new Date(now));
         var stream = new MemoryStream(data);
-        var gc = lib.createGarbageCollector(stream);
+        var gc = lib.createGarbageCollector({ reader: stream});
         var morayCalled = false;
         var makoCalled = false;
 
@@ -106,7 +106,7 @@ test('test: single moray cleanup, live object after', function (t) {
                 dead('1234', new Date(now + 1000), MORAY_1) +
                 live('1234', new Date(now + 2000));
         var stream = new MemoryStream(data);
-        var gc = lib.createGarbageCollector(stream);
+        var gc = lib.createGarbageCollector({ reader: stream });
         var morayCalled = 0;
         var makoCalled = false;
 
@@ -140,7 +140,7 @@ test('test: single moray cleanup, dead object after', function (t) {
                 dead('1234', new Date(now + 1000), MORAY_1) +
                 dead('1234', new Date(now + 2000), MORAY_2);
         var stream = new MemoryStream(data);
-        var gc = lib.createGarbageCollector(stream);
+        var gc = lib.createGarbageCollector({ reader: stream });
         var morayCalled = 0;
         var makoCalled = false;
 
@@ -169,7 +169,7 @@ test('test: dead object, before grace period', function (t) {
         var now = Date.now();
         var data = dead('1234', new Date(now), MORAY_1);
         var stream = new MemoryStream(data);
-        var gc = lib.createGarbageCollector(stream);
+        var gc = lib.createGarbageCollector({ reader: stream });
         var morayCalled = false;
         var makoCalled = false;
 
@@ -198,7 +198,7 @@ test('test: dead object, close before grace period', function (t) {
         var data = dead('1234', new Date(now - GRACE_PERIOD_MILLIS + 1000),
                         MORAY_1);
         var stream = new MemoryStream(data);
-        var gc = lib.createGarbageCollector(stream);
+        var gc = lib.createGarbageCollector({ reader: stream });
         var morayCalled = false;
         var makoCalled = false;
 
@@ -222,12 +222,12 @@ test('test: dead object, close before grace period', function (t) {
 });
 
 
-test('test: dead object, close after grace period', function (t) {
+test('test: dead object, close past grace period', function (t) {
         var now = Date.now();
         var recordDate = new Date(now - GRACE_PERIOD_MILLIS - 1000);
         var data = dead('1234', recordDate, MORAY_1);
         var stream = new MemoryStream(data);
-        var gc = lib.createGarbageCollector(stream);
+        var gc = lib.createGarbageCollector({ reader: stream });
         var morayCalled = 0;
         var makoCalled = 0;
         var makos = [];
@@ -243,6 +243,8 @@ test('test: dead object, close after grace period', function (t) {
         });
 
         gc.on('end', function () {
+                assert.equal(makoCalled, 2);
+                assert.equal(morayCalled, 1);
                 for (var i = 1; i <= 2; ++i) {
                         var mako = makos[i - 1];
                         var makoUrl = 'http://' + i + '.stor.coal.joyent.us';
@@ -252,8 +254,50 @@ test('test: dead object, close after grace period', function (t) {
                         assert.equal(OWNER, mako.owner);
                         assert.equal('1234', mako.objectId);
                 }
+                t.end();
+        });
+
+        process.nextTick(function () {
+                stream.end();
+        });
+});
+
+
+test('test: dead object, custom grace period', function (t) {
+        var now = Date.now();
+        var recordDate = new Date(now - 2000);
+        var data = dead('1234', recordDate, MORAY_1);
+        var stream = new MemoryStream(data);
+        var gc = lib.createGarbageCollector({
+                reader: stream,
+                gracePeriodMillis: 1000
+        });
+        var morayCalled = 0;
+        var makoCalled = 0;
+        var makos = [];
+
+        gc.on('moray', function (moray) {
+                ++morayCalled;
+                checkMoray(moray, MORAY_1, '1234', recordDate);
+        });
+
+        gc.on('mako', function (mako) {
+                ++makoCalled;
+                makos.push(mako);
+        });
+
+        gc.on('end', function () {
                 assert.equal(makoCalled, 2);
                 assert.equal(morayCalled, 1);
+                for (var i = 1; i <= 2; ++i) {
+                        var mako = makos[i - 1];
+                        var makoUrl = 'http://' + i + '.stor.coal.joyent.us';
+                        assert.equal(makoUrl, mako.url);
+                        assert.equal('server', mako.serverUuid);
+                        assert.equal(i, mako.zoneUuid);
+                        assert.equal(OWNER, mako.owner);
+                        assert.equal('1234', mako.objectId);
+                }
                 t.end();
         });
 
@@ -272,7 +316,7 @@ test('test: dead object, middle of other not-quite-deads', function (t) {
                 dead('1234', recordDate, MORAY_1) +
                 dead('1235', new Date(now), MORAY_2);
         var stream = new MemoryStream(data);
-        var gc = lib.createGarbageCollector(stream);
+        var gc = lib.createGarbageCollector({ reader: stream });
         var morayCalled = 0;
         var makoCalled = 0;
         var makos = [];

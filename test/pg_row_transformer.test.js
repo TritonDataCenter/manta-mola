@@ -46,7 +46,7 @@ test('test: tranform live', function (t) {
         var opts = {
                 reader: readStream,
                 dumpDate: dumpDate,
-                leastDumpDate: dumpDate,
+                earliestDumpDate: dumpDate,
                 morayHostname: morayHostname
         };
         var pt = lib.createPgRowTransformer(opts);
@@ -80,7 +80,7 @@ test('test: transform dead', function (t) {
         var opts = {
                 reader: readStream,
                 dumpDate: dumpDate,
-                leastDumpDate: dumpDate,
+                earliestDumpDate: dumpDate,
                 morayHostname: morayHostname
         };
         var pt = lib.createPgRowTransformer(opts);
@@ -109,13 +109,13 @@ test('test: transform dead, discard newest entries', function (t) {
         //   | json -a entry[2] | json -a mtime | sort -n \
         //   | head -50 | tail -1 | perl -ne 'print int($_ / 1000) + 1;' \
         //   | xargs -i date -d @{} +'%Y-%m-%dT%H:%M:%S.000Z'
-        var leastDumpDateString = '2012-10-05T00:59:05.000Z';
-        var leastDumpDate = new Date(leastDumpDateString);
+        var earliestDumpDateString = '2012-10-05T00:59:05.000Z';
+        var earliestDumpDate = new Date(earliestDumpDateString);
         var morayHostname = 'moray.localhost';
         var opts = {
                 reader: readStream,
                 dumpDate: dumpDate,
-                leastDumpDate: leastDumpDate,
+                earliestDumpDate: earliestDumpDate,
                 morayHostname: morayHostname
         };
         var pt = lib.createPgRowTransformer(opts);

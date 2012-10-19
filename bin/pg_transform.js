@@ -5,39 +5,67 @@
 var getopt = require('posix-getopt');
 var lib = require('../lib');
 var path = require('path');
+var util = require('util');
 
 
 
 ///--- Helpers
 
+function isValidDate(date) {
+        return (util.isDate(date) && !isNaN(date.getTime()));
+}
+
+function parseDate(dateString) {
+        var date = new Date(dateString);
+        if (isValidDate(date)) {
+                return (date);
+        }
+        //So we're cheating a bit here.  File dates come in the format
+        // 2012-10-18-23-00-02.
+        var parts = dateString.split('-');
+        while (parts.length < 6) {
+                parts.append('00');
+        }
+        var ds = parts[0] + '-' + parts[1] + '-' + parts[2] + 'T' +
+                parts[3] + ':' + parts[4] + ':' + parts[5] + 'Z';
+        date = new Date(ds);
+        if (isValidDate(date)) {
+                return (date);
+        }
+        //We'll let the caller catch this.
+        return (dateString);
+}
+
+
 function parseOptions() {
         var option;
         var opts = {};
-        var parser = new getopt.BasicParser('d:l:h:',
+        var parser = new getopt.BasicParser('d:e:m:',
                                             process.argv);
-        var tmp;
-
         while ((option = parser.getopt()) !== undefined && !option.error) {
                 switch (option.option) {
                 case 'd':
-                        opts.dump_date = new Date(option.optarg);
+                        opts.dumpDate = parseDate(option.optarg);
                         break;
-                case 'l':
-                        opts.least_dump_date = new Date(option.optarg);
+                case 'e':
+                        opts.earliestDumpDate = parseDate(option.optarg);
                         break;
-                case 'h':
-                        opts.moray_hostname = option.optarg;
+                case 'm':
+                        opts.morayHostname = option.optarg;
+                        break;
+                default:
+                        usage('Unknown option: ' + option.option);
                         break;
                 }
         }
-        if (!opts.dump_date) {
+        if (!opts.dumpDate) {
                 usage('-d [dump_date] is a required argument');
         }
-        if (!opts.least_dump_date) {
-                usage('-l [least_dump_date] is a required argument');
+        if (!opts.earliestDumpDate) {
+                usage('-e [earliest_dump_date] is a required argument');
         }
-        if (!opts.moray_hostname) {
-                usage('-h [moray_hostname] is a required argument');
+        if (!opts.morayHostname) {
+                usage('-m [moray_hostname] is a required argument');
         }
         return (opts);
 }
@@ -48,7 +76,7 @@ function usage(msg) {
                 console.error(msg);
         }
         var str  = 'usage: ' + path.basename(process.argv[1]);
-        str += ' [-d dump_date] [-l least_dump_time] [-h moray_hostname]';
+        str += ' [-d dump_date] [-e earliest_dump_time] [-m moray_hostname]';
         console.error(str);
         process.exit(1);
 }

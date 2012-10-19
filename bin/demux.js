@@ -35,6 +35,9 @@ function parseOptions() {
                 case 'b':
                         opts.num_buckets = parseInt(option.optarg, 10);
                         break;
+                default:
+                        usage('Unknown option: ' + option.option);
+                        break;
                 }
 
         }
@@ -69,7 +72,7 @@ function usage(msg) {
 var _opts = parseOptions();
 
 //Make sure that the dir exists
-fs.stat(_opts.directory, function(err, stat) {
+fs.stat(_opts.directory, function (err, stat) {
         var dir = _opts.directory;
         var filePrefix = _opts.file_prefix;
         var filenames = [];
@@ -88,7 +91,7 @@ fs.stat(_opts.directory, function(err, stat) {
                         input: process.stdin,
                         output: streams
                 };
-                lib.createStreamDemux(opts, function(err2) {
+                lib.createStreamDemux(opts, function (err2) {
                         if (err) {
                                 console.log(err2);
                                 process.exit();
@@ -114,10 +117,11 @@ fs.stat(_opts.directory, function(err, stat) {
         if (dir.indexOf('/', dir.length - 1) === -1) {
                 dir += '/';
         }
-        for (var i = 0; i < _opts.num_buckets; ++i) {
+        var i;
+        for (i = 0; i < _opts.num_buckets; ++i) {
                 filenames.push(dir + filePrefix + '.' + i);
         }
-        for (var i = 0; i < filenames.length; ++i) {
+        for (i = 0; i < filenames.length; ++i) {
                 var stream = fs.createWriteStream(filenames[i]);
                 stream.once('open', writeWhenReady);
                 streams.push(stream);
