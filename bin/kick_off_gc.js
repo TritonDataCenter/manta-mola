@@ -89,7 +89,7 @@ bzcat | \
 /* BEGIN JSSTYLED */
 function getGcCmd() {
         return (ENV_COMMON + ' \
-sort | node ./bin/gc.js -g 3600 | sort | \
+sort | node ./bin/gc.js | sort | \
   mpipe /$MANTA_USER/stor/$MANTA_GC/all/do/$NOW-$MARLIN_JOB \
 ');
 }
