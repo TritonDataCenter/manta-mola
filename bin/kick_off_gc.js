@@ -89,8 +89,13 @@ bzcat | \
 /* BEGIN JSSTYLED */
 function getGcCmd() {
         return (ENV_COMMON + ' \
-sort | node ./bin/gc.js | sort | \
-  mpipe /$MANTA_USER/stor/$MANTA_GC/all/do/$NOW-$MARLIN_JOB \
+export MANTA_OUT=/$MANTA_USER/stor/$MANTA_GC/all/done/$NOW-$MARLIN_JOB && \
+export MANTA_LINKS=/$MANTA_USER/stor/$MANTA_GC/all/do/$NOW-$MARLIN_JOB-links && \
+export LINKS_FILE=./links.txt && \
+sort | node ./bin/gc.js | \
+  /usr/perl5/bin/perl ./bin/gc_links.pl $LINKS_FILE $MANTA_OUT | \
+  mpipe $MANTA_OUT && \
+cat $LINKS_FILE | mpipe $MANTA_LINKS \
 ');
 }
 /* END JSSTYLED */
