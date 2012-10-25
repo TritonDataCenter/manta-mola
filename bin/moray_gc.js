@@ -51,7 +51,7 @@ function cleanShard(shard) {
                         var mc = lib.createMorayCleaner(opts);
 
                         mc.on('error', function (err2) {
-                                LOG.error(err2, 'Error in Moray Cleaner');
+                                ifError(err2);
                         });
 
                         mc.on('end', function () {
