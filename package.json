@@ -6,7 +6,7 @@
         "private": true,
         "dependencies": {
                 "assert-plus": "0.1.1",
-                "bunyan": "0.14.0",
+                "bunyan": "0.14.6",
 		"carrier": "0.1.7",
 		"memorystream": "0.2.0",
 		"node-manta": "git+ssh://git@git.joyent.com:node-manta.git#master",
@@ -18,7 +18,7 @@
                 "nodeunit": "0.7.4"
         },
 	"engines": {
-	        "node": "~0.8"
+	        "node": "0.8.12"
 	},
         "scripts": {
                 "start": "node ./server.js"
