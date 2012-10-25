@@ -12,16 +12,16 @@ var path = require('path');
 
 ///--- Globals
 
-var MORAY_CLEANUP_PATH = '/manta_gc/moray';
-var MANTA_CONFIG = (process.env.MANTA_CONFIG ||
-                    '/opt/smartdc/common/etc/config.json');
 var LOG = bunyan.createLogger({
         level: (process.env.LOG_LEVEL || 'info'),
         name: 'moray_gc',
         stream: process.stdout
 });
+var MANTA_CONFIG = (process.env.MANTA_CONFIG ||
+                    '/opt/smartdc/common/etc/config.json');
 var MANTA_CLIENT = manta.createClientFromFileSync(MANTA_CONFIG, LOG);
 var MANTA_USER = MANTA_CLIENT.user;
+var MORAY_CLEANUP_PATH = '/' + MANTA_USER + '/stor/manta_gc/moray';
 
 
 
@@ -36,7 +36,7 @@ function ifError(err) {
 
 
 function cleanShard(shard) {
-        var dir = MORAY_CLEANUP_PATH + '/' + shard + '/do';
+        var dir = MORAY_CLEANUP_PATH + '/' + shard;
         LOG.info({ shard: shard, dir: dir }, 'Cleaning up shard.');
         MANTA_CLIENT.ls(dir, function (err, res) {
                 ifError(err);

@@ -6,12 +6,13 @@
 # is written.
 ###############################################################################
 
-if (@ARGV < 2) {
-    print "Usage: ".$ENV{"_"}." [output file] [manta key]\n";
+if (@ARGV < 3) {
+    print "Usage: ".$ENV{"_"}." [manta_user] [output file] [manta object]\n";
     exit 1;
 }
-$file = $ARGV[0];
-$key = $ARGV[1];
+$user = $ARGV[0];
+$file = $ARGV[1];
+$object = $ARGV[2];
 
 while($line = <STDIN>) {
     @parts = split(/\t/, $line);
@@ -25,16 +26,16 @@ while($line = <STDIN>) {
     print $line;
 }
 
-@kparts = split(/\//, $key);
+@kparts = split(/\//, $object);
 $k = $kparts[-1];
 
 open(OUT, ">$file");
 for $node (sort keys %{ $k{"mako"} } ) {
-    print OUT "mmkdir /manta_gc/mako/$node\n";
-    print OUT "mln $key /manta_gc/mako/$node/$k\n";
+    print OUT "mmkdir /$user/stor/manta_gc/mako/$node\n";
+    print OUT "mln $object /$user/stor/manta_gc/mako/$node/$k\n";
 }
 for $shard (sort keys %{ $k{"moray"} } ) {
-    print OUT "mmkdir /manta_gc/moray/$shard\n";
-    print OUT "mln $key /manta_gc/moray/$shard/$k\n";
+    print OUT "mmkdir /$user/stor/manta_gc/moray/$shard\n";
+    print OUT "mln $object /$user/stor/manta_gc/moray/$shard/$k\n";
 }
 close(OUT);

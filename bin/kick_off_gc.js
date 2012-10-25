@@ -5,50 +5,52 @@
 var assert = require('assert-plus');
 var bunyan = require('bunyan');
 var fs = require('fs');
+var getopt = require('posix-getopt');
 var lib = require('../lib');
 var manta = require('manta');
+var path = require('path');
 var vasync = require('vasync');
 var sys = require('sys');
 
 
 
+///--- Global Objects
+
+var NAME = 'mola';
+var LOG = bunyan.createLogger({
+        level: (process.env.LOG_LEVEL || 'info'),
+        name: NAME,
+        stream: process.stdout
+});
+var MANTA_CONFIG = (process.env.MANTA_CONFIG ||
+                    '/opt/smartdc/common/etc/config.json');
+var MANTA_CLIENT = manta.createClientFromFileSync(MANTA_CONFIG, LOG);
+var MANTA_USER = MANTA_CLIENT.user;
+
+
+
 ///--- Global Strings
 
-var BACKUP_DIR = '/manatee_backups';
+var MP = '/' + MANTA_USER + '/stor';
+var BACKUP_DIR = MP + '/manatee_backups';
 var MOLA_CODE_BUNDLE = (process.env.MOLA_CODE_BUNDLE ||
                         '/opt/smartdc/common/bundle/mola.tar.gz');
 var GC_JOB_NAME = 'manta_gc';
-var NAME = 'mola';
-var MANTA_CONFIG = (process.env.MANTA_CONFIG ||
-                    '/opt/smartdc/common/etc/config.json');
-var MANTA_GC_DIR = '/manta_gc';
+var MANTA_GC_DIR = MP + '/manta_gc';
 var MANTA_ASSET_DIR = MANTA_GC_DIR + '/assets';
 var MOLA_ASSET_KEY = MANTA_ASSET_DIR + '/mola.tar.gz';
 var MANTA_DUMP_NAME = 'manta.bzip';
 var MANTA_DELETE_LOG_DUMP_NAME = 'manta_delete_log.bzip';
 var RUNNING_STATE = 'running';
 
-
-
-///--- Global Objects
-
-var LOG = bunyan.createLogger({
-        level: (process.env.LOG_LEVEL || 'info'),
-        name: NAME,
-        stream: process.stdout
-});
-var MANTA_CLIENT = manta.createClientFromFileSync(MANTA_CONFIG, LOG);
-var MANTA_USER = MANTA_CLIENT.user;
-
-
-//In marlin, the asset key must be the full path
-var MARLIN_PATH_TO_ASSET = MANTA_USER + '/stor' + MOLA_ASSET_KEY;
-var MARLIN_ASSET_KEY = '/' + MANTA_USER + '/stor' + MOLA_ASSET_KEY;
-var MANTA_GC_ALL_DIR = '/' + MANTA_USER + '/stor' + MANTA_GC_DIR + '/all';
-var MANTA_GC_ADO_DIR = '/' + MANTA_USER + '/stor' + MANTA_GC_DIR + '/all/do';
-var MANTA_GC_ADN_DIR = '/' + MANTA_USER + '/stor' + MANTA_GC_DIR + '/all/done';
-var MANTA_GC_MAKO_DIR = '/' + MANTA_USER + '/stor' + MANTA_GC_DIR + '/mako';
-var MANTA_GC_MORAY_DIR = '/' + MANTA_USER + '/stor' + MANTA_GC_DIR + '/moray';
+//In Marlin
+var MARLIN_PATH_TO_ASSET = MOLA_ASSET_KEY.substring(1);
+var MARLIN_ASSET_KEY = MOLA_ASSET_KEY;
+var MANTA_GC_ALL_DIR = MANTA_GC_DIR + '/all';
+var MANTA_GC_ADO_DIR = MANTA_GC_DIR + '/all/do';
+var MANTA_GC_ADN_DIR = MANTA_GC_DIR + '/all/done';
+var MANTA_GC_MAKO_DIR = MANTA_GC_DIR + '/mako';
+var MANTA_GC_MORAY_DIR = MANTA_GC_DIR + '/moray';
 
 
 
@@ -74,12 +76,12 @@ cd /assets/ && tar -xzf ' + MARLIN_PATH_TO_ASSET + ' && cd mola && \
 ///--- Helpers
 
 /* BEGIN JSSTYLED */
-function getPgTransformCmd(earliest_dump_date) {
+function getPgTransformCmd(earliestDumpDate) {
         return (ENV_COMMON + ' \
 export MORAY_SHARD=$(echo $mc_input_key | cut -d "/" -f 5) && \
 export DUMP_DATE=$(echo $mc_input_key | cut -d "/" -f 6) && \
 bzcat | \
-  node ./bin/pg_transform.js -d $DUMP_DATE -e ' + earliest_dump_date + ' \
+  node ./bin/pg_transform.js -d $DUMP_DATE -e ' + earliestDumpDate + ' \
     -m $MORAY_SHARD \
 ');
 }
@@ -87,18 +89,52 @@ bzcat | \
 
 
 /* BEGIN JSSTYLED */
-function getGcCmd() {
+function getGcCmd(gracePeriodSeconds) {
+        var gracePeriodOption = '';
+        if (gracePeriodSeconds) {
+                gracePeriodOption = ' -g ' + gracePeriodSeconds;
+        }
         return (ENV_COMMON + ' \
 export MANTA_OUT=/$MANTA_USER/stor/$MANTA_GC/all/done/$NOW-$MARLIN_JOB && \
 export MANTA_LINKS=/$MANTA_USER/stor/$MANTA_GC/all/do/$NOW-$MARLIN_JOB-links && \
 export LINKS_FILE=./links.txt && \
-sort | node ./bin/gc.js | \
-  /usr/perl5/bin/perl ./bin/gc_links.pl $LINKS_FILE $MANTA_OUT | \
+sort | node ./bin/gc.js' + gracePeriodOption + ' | \
+  /usr/perl5/bin/perl ./bin/gc_links.pl $MANTA_USER $LINKS_FILE $MANTA_OUT | \
   mpipe $MANTA_OUT && \
 cat $LINKS_FILE | mpipe $MANTA_LINKS \
 ');
 }
 /* END JSSTYLED */
+
+
+function parseOptions() {
+        var option;
+        var opts = {};
+        var parser = new getopt.BasicParser('g:',
+                                            process.argv);
+        while ((option = parser.getopt()) !== undefined && !option.error) {
+                switch (option.option) {
+                case 'g':
+                        opts.gracePeriodSeconds = parseInt(option.optarg, 10);
+                        break;
+                default:
+                        usage('Unknown option: ' + option.option);
+                        break;
+                }
+        }
+        return (opts);
+}
+
+
+function usage(msg) {
+        if (msg) {
+                console.error(msg);
+        }
+        var str  = 'usage: ' + path.basename(process.argv[1]);
+        str += ' [-g grace_period_seconds]';
+        console.error(str);
+        process.exit(1);
+}
 
 
 function ifError(err, msg) {
@@ -200,8 +236,8 @@ function updloadBundle(cb) {
                 var stream = fs.createReadStream(MOLA_CODE_BUNDLE);
                 stream.pause();
                 stream.on('open', function () {
-                        var path = MOLA_ASSET_KEY;
-                        MANTA_CLIENT.put(path, stream, opts, function (err2) {
+                        var p = MOLA_ASSET_KEY;
+                        MANTA_CLIENT.put(p, stream, opts, function (err2) {
                                 ifError(err2);
                                 cb();
                         });
@@ -216,14 +252,11 @@ function createGcMarlinJob(opts) {
                 phases: [ {
                         type: 'storage-map',
                         assets: [ MARLIN_ASSET_KEY ],
-//                        args: {
-//                                earliest_dump: opts.earliest_dump
-//                        },
                         exec: getPgTransformCmd(opts.earliest_dump)
                 }, {
                         type: 'reduce',
                         assets: [ MARLIN_ASSET_KEY ],
-                        exec: getGcCmd()
+                        exec: getGcCmd(opts.gracePeriodSeconds)
                 } ]
         };
 
@@ -233,7 +266,6 @@ function createGcMarlinJob(opts) {
                 ifError(err);
 
                 LOG.info({ jobId: jobId }, 'Created Job.');
-
                 var aopts = {
                         end: true
                 };
@@ -298,8 +330,9 @@ function setupGcMarlinJob(opts) {
 }
 
 
-function runGcWithShards(shards) {
-        LOG.info({ shards: shards }, 'Running GC with shards.');
+function runGcWithShards(opts) {
+        LOG.info({ opts: opts }, 'Running GC with shards.');
+        var shards = opts.shards;
         vasync.forEachParallel({
                 func: findLatestBackup,
                 inputs: shards
@@ -327,17 +360,15 @@ function runGcWithShards(shards) {
                 var earliest_dump = dates[0];
 
                 verifyObjectsExist(keys, dirs, function () {
-                        var marlinOpts = {
-                                keys: keys,
-                                earliest_dump: earliest_dump
-                        };
-                        setupGcMarlinJob(marlinOpts);
+                        opts.keys = keys;
+                        opts.earliest_dump = earliest_dump;
+                        setupGcMarlinJob(opts);
                 });
         });
 }
 
 
-function findShards() {
+function findShards(opts) {
         MANTA_CLIENT.ls(BACKUP_DIR, {}, function (err, res) {
                 ifError(err);
 
@@ -353,7 +384,9 @@ function findShards() {
                         }
                         //TODO: Verify with ufds that this is the complete
                         // set of shards.
-                        runGcWithShards(shards);
+                        opts.shards = shards;
+                        LOG.info({ opts: opts }, 'Running with shards.');
+                        runGcWithShards(opts);
                 });
 
                 res.on('error', function (err2) {
@@ -370,6 +403,7 @@ function findShards() {
 
 ///--- Main
 
+var _opts = parseOptions();
 //If a job is already running, kick out.
 MANTA_CLIENT.listJobs({ state: RUNNING_STATE }, function (err, res) {
         ifError(err);
@@ -394,6 +428,6 @@ MANTA_CLIENT.listJobs({ state: RUNNING_STATE }, function (err, res) {
                         LOG.info(gcObject, 'GC Job already running.');
                         process.exit(1);
                 }
-                findShards();
+                findShards(_opts);
         });
 });
