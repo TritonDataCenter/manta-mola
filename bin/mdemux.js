@@ -10,8 +10,6 @@ var path = require('path');
 
 
 /**
- * Examples:
- *
  * Bucketize by fields in a line, uploading to manta via mpipe.  For example,
  * this will bucketize quotes into last/first name files, given a stream
  * of records with lines like:

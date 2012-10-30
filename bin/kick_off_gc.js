@@ -100,12 +100,14 @@ function getGcCmd(gracePeriodSeconds) {
         return (ENV_COMMON + ' \
 export UUID=$(uuid) && \
 export MANTA_PRE=/$MANTA_USER/stor/$MANTA_GC/all && \
-export MANTA_OUT=$MANTA_PRE/done/$NOW-$MARLIN_JOB-X-$UUID && \
+export MANTA_FILE_PRE=$MANTA_PRE/done/$NOW-$MARLIN_JOB-X-$UUID && \
+export MANTA_PATTERN=$MANTA_FILE_PRE-{1}-{2} && \
 export MANTA_LINKS=$MANTA_PRE/do/$NOW-$MARLIN_JOB-X-$UUID-links && \
+export PERL=/usr/perl5/bin/perl && \
 export LINKS_FILE=./links.txt && \
 sort | node ./bin/gc.js' + gracePeriodOption + ' | \
-  /usr/perl5/bin/perl ./bin/gc_links.pl $MANTA_USER $LINKS_FILE $MANTA_OUT | \
-  mpipe $MANTA_OUT && \
+  $PERL ./bin/gc_links.pl $MANTA_USER $LINKS_FILE $MANTA_FILE_PRE | \
+  node ./bin/mdemux.js -p $MANTA_PATTERN && \
 cat $LINKS_FILE | mpipe $MANTA_LINKS \
 ');
 }
