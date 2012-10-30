@@ -9,13 +9,13 @@ MDIR=/$MANTA_USER/stor/manta_gc/all/do
 NOW=`date`
 
 function fatal {
-        echo "$NOW: $(basename $0): fatal error: $*" >&2
+    echo "$NOW: $(basename $0): fatal error: $*" >&2
     exit 1
 }
 
 function log {
     echo "$NOW: $(basename $0): info: $*" >&2
-    }
+}
 
 COUNT=0
 

@@ -9,8 +9,8 @@ var getopt = require('posix-getopt');
 var lib = require('../lib');
 var manta = require('manta');
 var path = require('path');
-var vasync = require('vasync');
 var sys = require('sys');
+var vasync = require('vasync');
 
 
 
@@ -76,13 +76,14 @@ cd /assets/ && tar -xzf ' + MARLIN_PATH_TO_ASSET + ' && cd mola && \
 ///--- Helpers
 
 /* BEGIN JSSTYLED */
-function getPgTransformCmd(earliestDumpDate) {
+function getPgTransformCmd(earliestDumpDate, nReducers) {
         return (ENV_COMMON + ' \
 export MORAY_SHARD=$(echo $mc_input_key | cut -d "/" -f 5) && \
 export DUMP_DATE=$(echo $mc_input_key | cut -d "/" -f 6) && \
 bzcat | \
   node ./bin/pg_transform.js -d $DUMP_DATE -e ' + earliestDumpDate + ' \
-    -m $MORAY_SHARD \
+    -m $MORAY_SHARD | \
+  msplit -n ' + nReducers + ' \
 ');
 }
 /* END JSSTYLED */
@@ -94,9 +95,13 @@ function getGcCmd(gracePeriodSeconds) {
         if (gracePeriodSeconds) {
                 gracePeriodOption = ' -g ' + gracePeriodSeconds;
         }
+        //We use a UUID only because there's no way (yet) to get a reference
+        // to which reducer this is running on.
         return (ENV_COMMON + ' \
-export MANTA_OUT=/$MANTA_USER/stor/$MANTA_GC/all/done/$NOW-$MARLIN_JOB && \
-export MANTA_LINKS=/$MANTA_USER/stor/$MANTA_GC/all/do/$NOW-$MARLIN_JOB-links && \
+export UUID=$(uuid) && \
+export MANTA_PRE=/$MANTA_USER/stor/$MANTA_GC/all && \
+export MANTA_OUT=$MANTA_PRE/done/$NOW-$MARLIN_JOB-X-$UUID && \
+export MANTA_LINKS=$MANTA_PRE/do/$NOW-$MARLIN_JOB-X-$UUID-links && \
 export LINKS_FILE=./links.txt && \
 sort | node ./bin/gc.js' + gracePeriodOption + ' | \
   /usr/perl5/bin/perl ./bin/gc_links.pl $MANTA_USER $LINKS_FILE $MANTA_OUT | \
@@ -247,16 +252,23 @@ function updloadBundle(cb) {
 
 
 function createGcMarlinJob(opts) {
+        //We use the number of shards + 1 so that we know
+        // we are always using multiple reducers.  There's
+        // no reason this can't be much more.
+        var nReducers = opts.shards.length + 1;
+        var pgCmd = getPgTransformCmd(opts.earliest_dump, nReducers);
+        var gcCmd = getGcCmd(opts.gracePeriodSeconds);
         var job = {
                 name: GC_JOB_NAME,
                 phases: [ {
                         type: 'storage-map',
                         assets: [ MARLIN_ASSET_KEY ],
-                        exec: getPgTransformCmd(opts.earliest_dump)
+                        exec: pgCmd
                 }, {
                         type: 'reduce',
+                        count: nReducers,
                         assets: [ MARLIN_ASSET_KEY ],
-                        exec: getGcCmd(opts.gracePeriodSeconds)
+                        exec: gcCmd
                 } ]
         };
 
