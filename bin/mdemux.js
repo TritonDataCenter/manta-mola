@@ -72,19 +72,23 @@ function usage(msg) {
 
 //Any number between {}...
 function extractFields(pattern) {
+        /* JSSTYLED */
         var regexp = /\{(\d+)\}/g;
         var match = null;
         var fields = {};
         var res = [];
+        /*jsl:ignore*/
         while (match = regexp.exec(pattern)) {
+                /*jsl:end*/
                 var n = match[1]; //The capture
                 fields[n] = '';
         }
+
         for (var key in fields) {
                 var f = parseInt(key, 10);
                 res.push(f);
         }
-        return res;
+        return (res);
 }
 
 
@@ -132,7 +136,7 @@ _c.on('line', function (line) {
 });
 
 _c.on('end', function () {
-        for (key in _pipes) {
+        for (var key in _pipes) {
                 _pipes[key].stdin.end();
         }
 });

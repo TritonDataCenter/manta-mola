@@ -16,11 +16,9 @@ var test = helper.test;
 ///--- Helpers
 
 function checkDeadRow(row, morayHostname) {
-        //All the rest of this isn't strictly necessary, but might as
-        // well leave it.
         assert.ok(row.objectId);
         assert.object(row.obj);
-        var rowDate = new Date(row.obj['_value'].mtime);
+        var rowDate = new Date(row.obj['_mtime'] - 0);
         assert.ok(rowDate);
         assert.ok(row.date - 0 == rowDate - 0, 'Date ' + row.date +
                   ' isnt the row date ' + rowDate);
@@ -106,10 +104,10 @@ test('test: transform dead, discard newest entries', function (t) {
         var dumpDateString = '2012-10-05T16:00:02.000Z';
         var dumpDate = new Date(dumpDateString);
         //cat data/pg_rt_test/2012-10-05-16-00-02-manta_delete_log \
-        //   | json -a entry[2] | json -a mtime | sort -n \
-        //   | head -50 | tail -1 | perl -ne 'print int($_ / 1000) + 1;' \
+        //   | json -a entry[4] | sort -n \
+        //   | head -51 | tail -1 | perl -ne 'print int($_ / 1000) + 1;' \
         //   | xargs -i date -d @{} +'%Y-%m-%dT%H:%M:%S.000Z'
-        var earliestDumpDateString = '2012-10-05T00:59:05.000Z';
+        var earliestDumpDateString = '2012-10-05T01:00:42.000Z';
         var earliestDumpDate = new Date(earliestDumpDateString);
         var morayHostname = 'moray.localhost';
         var opts = {

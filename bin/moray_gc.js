@@ -74,13 +74,24 @@ function cleanShard(shard) {
 
 MANTA_CLIENT.ls(MORAY_CLEANUP_PATH, {}, function (err, res) {
         ifError(err);
+        var shards = [];
 
         res.on('directory', function (dir) {
                 var shard = dir.name;
                 cleanShard(shard);
+                shards.push(shard);
         });
 
         res.on('error', function (err2) {
+                if (err2 && err2.name === 'ResourceNotFoundError') {
+                        LOG.info({ path: MORAY_CLEANUP_PATH },
+                                 'No directories yet for manta gc.  Exiting.');
+                        process.exit(0);
+                }
                 ifError(err2);
+        });
+
+        res.on('end', function () {
+                LOG.info({ shards: shards }, 'Cleaned shards.');
         });
 });

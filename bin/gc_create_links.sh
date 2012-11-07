@@ -20,8 +20,26 @@ function log {
 COUNT=0
 
 log "listing $MDIR"
-for json in `mls $MDIR`
+MLS_RES=`mls $MDIR 2>&1`
+while read -r json
 do
+    if [[ "$json" == *Error* ]]
+    then
+        if [[ "$json" == *ResourceNotFound* ]]
+        then
+            log "GC not set up yet: $json"
+            exit 0;
+        else
+            fatal "$json"
+        fi
+    fi
+
+    #Nothing in the directory...
+    if [[ "$json" == "" ]]
+    then
+	break;
+    fi
+
     FILE=`echo $json | json -a name`
     MFILE=$MDIR/$FILE
     mget $MFILE | bash
@@ -32,9 +50,7 @@ do
 
     log "processed $MFILE successfully"
     ((COUNT++))
-done
-
-[[ $? -eq 0 ]] || fatal "Couldnt list $MDIR"
+done <<< "$MLS_RES"
 
 log "done, processed $COUNT files"
 exit 0;
