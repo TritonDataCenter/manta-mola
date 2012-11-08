@@ -92,6 +92,9 @@ release: all docs $(SMF_MANIFESTS)
 		$(ROOT)/node_modules \
 		$(ROOT)/package.json \
 		$(TMPDIR)/root/opt/smartdc/$(NAME)
+	#We remove build/prebuilt-* because those symlinks will cause tar
+	# to complain when re-taring as a bundle once deployed, MANTA-495
+	rm $(TMPDIR)/root/opt/smartdc/$(NAME)/build/prebuilt-*
 	(cd $(TMPDIR) && $(TAR) -jcf $(ROOT)/$(RELEASE_TARBALL) root site)
 	@rm -rf $(TMPDIR)
 
