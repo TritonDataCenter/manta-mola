@@ -39,8 +39,8 @@ var GC_JOB_NAME = 'manta_gc';
 var MANTA_GC_DIR = MP + '/manta_gc';
 var MANTA_ASSET_DIR = MANTA_GC_DIR + '/assets';
 var MOLA_ASSET_KEY = MANTA_ASSET_DIR + '/mola.tar.gz';
-var MANTA_DUMP_NAME = 'manta.bzip';
-var MANTA_DELETE_LOG_DUMP_NAME = 'manta_delete_log.bzip';
+var MANTA_DUMP_NAME = 'manta.bz2';
+var MANTA_DELETE_LOG_DUMP_NAME = 'manta_delete_log.bz2';
 var RUNNING_STATE = 'running';
 
 //In Marlin
