@@ -226,33 +226,6 @@ function findLatestBackup(shardName, cb) {
 }
 
 
-function updloadBundle(cb) {
-        fs.stat(MOLA_CODE_BUNDLE, function (err, stats) {
-                ifError(err);
-
-                if (!stats.isFile()) {
-                        console.error(MOLA_CODE_BUNDLE + ' is not a file');
-                        process.exit(1);
-                }
-
-                var opts = {
-                        copies: 2,
-                        size: stats.size
-                };
-
-                var stream = fs.createReadStream(MOLA_CODE_BUNDLE);
-                stream.pause();
-                stream.on('open', function () {
-                        var p = MOLA_ASSET_KEY;
-                        MANTA_CLIENT.put(p, stream, opts, function (err2) {
-                                ifError(err2);
-                                cb();
-                        });
-                });
-        });
-}
-
-
 function createGcMarlinJob(opts) {
         //We use the number of shards + 1 so that we know
         // we are always using multiple reducers.  There's
