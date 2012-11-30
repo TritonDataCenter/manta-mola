@@ -39,8 +39,8 @@ var GC_JOB_NAME = 'manta_gc';
 var MANTA_GC_DIR = MP + '/manta_gc';
 var MANTA_ASSET_DIR = MANTA_GC_DIR + '/assets';
 var MOLA_ASSET_KEY = MANTA_ASSET_DIR + '/mola.tar.gz';
-var MANTA_DUMP_NAME = 'manta.bz2';
-var MANTA_DELETE_LOG_DUMP_NAME = 'manta_delete_log.bz2';
+var MANTA_DUMP_NAME_PREFIX = 'manta-';
+var MANTA_DELETE_LOG_DUMP_NAME_PREFIX = 'manta_delete_log-';
 var RUNNING_STATE = 'running';
 
 //In Marlin
@@ -80,7 +80,7 @@ function getPgTransformCmd(earliestDumpDate, nReducers) {
         return (ENV_COMMON + ' \
 export MORAY_SHARD=$(echo $mc_input_key | cut -d "/" -f 5) && \
 export DUMP_DATE=$(echo $mc_input_key | cut -d "/" -f 6) && \
-bzcat | \
+zcat | \
   node ./bin/pg_transform.js -d $DUMP_DATE -e ' + earliestDumpDate + ' \
     -m $MORAY_SHARD | \
   msplit -n ' + nReducers + ' \
@@ -152,6 +152,16 @@ function ifError(err, msg) {
 }
 
 
+function startsWith(str, prefix) {
+        return str.slice(0, prefix.length) === prefix;
+}
+
+
+function endsWith(str, suffix) {
+        return str.indexOf(suffix, str.length - suffix.length) !== -1;
+}
+
+
 function getObjectsInDir(dir, cb) {
         var keys = [];
         MANTA_CLIENT.ls(dir, {}, function (err, res) {
@@ -172,41 +182,28 @@ function getObjectsInDir(dir, cb) {
 }
 
 
-function verifyObjectsExist(keys, dirs, cb) {
-        vasync.forEachParallel({
-                func: getObjectsInDir,
-                inputs: dirs
-        }, function (err, res) {
-                ifError(err);
+function findLatestBackupObjects(opts, cb) {
+        if (typeof opts === 'string' || opts instanceof String) {
+                opts = {
+                        dir: BACKUP_DIR + '/' + opts
+                };
+        }
+        assert.string(opts.dir);
 
-                var gotkeys = [];
-                var i;
-                for (i = 0; i < res.successes.length; ++i) {
-                        gotkeys.push.apply(gotkeys, res.successes[i]);
-                }
+        var dir = opts.dir;
 
-                for (i = 0; i < keys.length; ++i) {
-                        if (gotkeys.indexOf(keys[i]) === -1) {
-                                LOG.error({ keys: keys, gotkeys: gotkeys },
-                                          'Couldnt find all keys in manta.');
-                                process.exit(1);
-                        }
-                }
-
-                cb();
-        });
-}
-
-
-function findLatestBackup(shardName, cb) {
-        var dir = BACKUP_DIR + '/' + shardName;
         MANTA_CLIENT.ls(dir, {}, function (err, res) {
                 ifError(err);
 
-                var dates = [];
+                var dirs = [];
+                var objs = [];
 
                 res.on('directory', function (d) {
-                        dates.push(d.name);
+                        dirs.push(d.name);
+                });
+
+                res.on('object', function (o) {
+                        objs.push(o.name);
                 });
 
                 res.on('error', function (err2) {
@@ -214,13 +211,18 @@ function findLatestBackup(shardName, cb) {
                 });
 
                 res.on('end', function () {
-                        if (dates.length < 1) {
-                                LOG.error('No dumps found for shard ' +
-                                          shardName);
-                                process.exit(1);
+                        //Assume that if there's objects or no further
+                        // directories to walk down, we're done.
+                        if (dirs.length === 0 || objs.length > 0) {
+                                cb(null, {
+                                        directory: dir,
+                                        objects: objs
+                                });
+                                return;
                         }
-                        dates.sort();
-                        cb(null, dates[dates.length - 1]);
+                        dirs.sort(function (a, b) { return (b - a); });
+                        dir += '/' + dirs[0];
+                        findLatestBackupObjects({ dir: dir }, cb);
                 });
         });
 }
@@ -317,11 +319,20 @@ function setupGcMarlinJob(opts) {
 }
 
 
+//Expects the filename to be in the format:
+// manta-2012-11-30-23-00-07.gz
+function extractDate(prefix, filename) {
+        var d = filename.replace(prefix, '');
+        d = d.substring(0, d.indexOf('.'));
+        return d;
+}
+
+
 function runGcWithShards(opts) {
         LOG.info({ opts: opts }, 'Running GC with shards.');
         var shards = opts.shards;
         vasync.forEachParallel({
-                func: findLatestBackup,
+                func: findLatestBackupObjects,
                 inputs: shards
         }, function (err, results) {
                 ifError(err);
@@ -335,22 +346,43 @@ function runGcWithShards(opts) {
                 var dates = [];
 
                 for (var i = 0; i < shards.length; ++i) {
-                        var date = results.successes[i];
-                        dates.push(date);
-                        var dir = BACKUP_DIR + '/' + shards[i] + '/' + date;
-                        dirs.push(dir);
-                        keys.push(dir + '/' + MANTA_DUMP_NAME);
-                        keys.push(dir + '/' + MANTA_DELETE_LOG_DUMP_NAME);
+                        var res = results.successes[i];
+                        var dir = res.directory;
+                        var objs = res.objects;
+
+                        //Search the objects for the tables we need to process
+                        var foundManta = false;
+                        var foundMantaDeleteLog = false;
+                        var mdnp = MANTA_DUMP_NAME_PREFIX;
+                        var mdldnp = MANTA_DELETE_LOG_DUMP_NAME_PREFIX;
+                        for (var i = 0; i < objs.length; ++i) {
+                                var obj = objs[i];
+                                if (startsWith(obj, mdnp)) {
+                                        foundManta = true;
+                                        keys.push(dir + '/' + obj);
+                                        //Get the date from the filename...
+                                        dates.push(extractDate(mdnp, obj));
+                                } else if (startsWith(obj, mdldnp)) {
+                                        foundMantaDeleteLog = true;
+                                        keys.push(dir + '/' + obj);
+                                }
+                        }
+
+                        if (!foundManta || !foundMantaDeleteLog) {
+                                LOG.error({ dir: dir, objs: objs },
+                                          'Couldnt find all tables in dump ' +
+                                          'directory.');
+                                process.exit(1);
+                        }
                 }
 
                 dates.sort();
+                LOG.info({ dates: dates }, 'found dates');
                 var earliest_dump = dates[0];
 
-                verifyObjectsExist(keys, dirs, function () {
-                        opts.keys = keys;
-                        opts.earliest_dump = earliest_dump;
-                        setupGcMarlinJob(opts);
-                });
+                opts.keys = keys;
+                opts.earliest_dump = earliest_dump;
+                setupGcMarlinJob(opts);
         });
 }
 
