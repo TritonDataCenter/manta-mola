@@ -153,12 +153,12 @@ function ifError(err, msg) {
 
 
 function startsWith(str, prefix) {
-        return str.slice(0, prefix.length) === prefix;
+        return (str.slice(0, prefix.length) === prefix);
 }
 
 
 function endsWith(str, suffix) {
-        return str.indexOf(suffix, str.length - suffix.length) !== -1;
+        return (str.indexOf(suffix, str.length - suffix.length) !== -1);
 }
 
 
@@ -183,7 +183,7 @@ function getObjectsInDir(dir, cb) {
 
 
 function findLatestBackupObjects(opts, cb) {
-        if (typeof opts === 'string' || opts instanceof String) {
+        if ((typeof (opts)) === 'string' || opts instanceof String) {
                 opts = {
                         dir: BACKUP_DIR + '/' + opts
                 };
@@ -324,7 +324,7 @@ function setupGcMarlinJob(opts) {
 function extractDate(prefix, filename) {
         var d = filename.replace(prefix, '');
         d = d.substring(0, d.indexOf('.'));
-        return d;
+        return (d);
 }
 
 
@@ -342,7 +342,6 @@ function runGcWithShards(opts) {
                 }
 
                 var keys = [];
-                var dirs = [];
                 var dates = [];
 
                 for (var i = 0; i < shards.length; ++i) {
@@ -355,8 +354,8 @@ function runGcWithShards(opts) {
                         var foundMantaDeleteLog = false;
                         var mdnp = MANTA_DUMP_NAME_PREFIX;
                         var mdldnp = MANTA_DELETE_LOG_DUMP_NAME_PREFIX;
-                        for (var i = 0; i < objs.length; ++i) {
-                                var obj = objs[i];
+                        for (var j = 0; j < objs.length; ++j) {
+                                var obj = objs[j];
                                 if (startsWith(obj, mdnp)) {
                                         foundManta = true;
                                         keys.push(dir + '/' + obj);
