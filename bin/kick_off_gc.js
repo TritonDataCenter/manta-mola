@@ -390,57 +390,6 @@ function runGcWithShards(opts) {
         });
 }
 
-function verifyShardsAndContinue(mantaShards, mdataShards, opts) {
-        if (mantaShards.length !== mdataShards.length) {
-                LOG.fatal({
-                        mantaShards: mantaShards,
-                        mdataShards: mdataShards,
-                        opts: opts
-                }, 'shard lists in manta and mdata (or cli) dont match.');
-                process.exit(1);
-        }
-        mantaShards.sort();
-        mdataShards.sort();
-        for (var i = 0; i < mantaShards.length; ++i) {
-                if (mantaShards[i] !== mdataShards[i]) {
-                        LOG.fatal({
-                                mantaShards: mantaShards,
-                                mdataShards: mdataShards,
-                                opts: opts
-                        }, 'shard lists in manta and mdata (or cli) dont ' +
-                                  'match.');
-                        process.exit(1);
-                }
-        }
-        opts.shards = mantaShards;
-        LOG.info({ opts: opts }, 'Running with shards.');
-        runGcWithShards(opts);
-}
-
-function getShardsFromManta(cb) {
-        MANTA_CLIENT.ls(BACKUP_DIR, {}, function (err, res) {
-                ifError(err);
-
-                var shards = [];
-
-                res.on('directory', function (dir) {
-                        shards.push(dir.name);
-                });
-
-                res.on('error', function (err2) {
-                        if (err2.code === 'ResourceNotFound') {
-                                LOG.info(BACKUP_DIR + ' doesnt exist.');
-                                process.exit(0);
-                        }
-                        ifError(err2);
-                });
-
-                res.on('end', function () {
-                        cb(null, shards);
-                });
-        });
-}
-
 
 function getShardsFromMdata(cb) {
         var cmd = 'mdata-get moray_indexer_names';
@@ -448,7 +397,7 @@ function getShardsFromMdata(cb) {
         exec(cmd, function (err, stdout, stderr) {
                 ifError(err, 'fetching from mdata failed.');
                 var shards = stdout.split(/\s+/);
-                while(shards[shards.length - 1] === '') {
+                while (shards[shards.length - 1] === '') {
                         shards.pop();
                 }
                 cb(null, shards);
@@ -457,34 +406,23 @@ function getShardsFromMdata(cb) {
 
 
 function findShards(opts) {
-        getShardsFromManta(function (err, mantaShards) {
-                ifError(err);
+        //This means the one running the command is responsible for
+        // giving the correct set of shards...
+        if (opts.shards && opts.shards.length > 0) {
+                runGcWithShards(opts);
+        } else {
+                getShardsFromMdata(function (err2, mdataShards) {
+                        ifError(err2);
 
-                if (mantaShards.length === 0) {
-                        LOG.info('no moray shards found in manta.');
-                        process.exit(0);
-                }
-
-                //This means the one running the command is responsible for
-                // giving the correct set of shards...
-                if (opts.shards.length > 0) {
-                        verifyShardsAndContinue(mantaShards, opts.shards, opts);
-                } else {
-                        getShardsFromMdata(function (err2, mdataShards) {
-                                ifError(err2);
-
-                                if (mantaShards.length === 0) {
-                                        var m = 'no moray shards found in ' +
-                                                'mdata.'
-                                        LOG.info(m);
-                                        process.exit(0);
-                                }
-                                verifyShardsAndContinue(mantaShards,
-                                                        mdataShards,
-                                                        opts);
-                        });
-                }
-        });
+                        if (mdataShards.length === 0) {
+                                var m = 'no moray shards found in mdata.';
+                                LOG.info(m);
+                                process.exit(0);
+                        }
+                        opts.shards = mdataShards;
+                        runGcWithShards(opts);
+                });
+        }
 }
 
 
