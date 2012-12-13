@@ -45,6 +45,7 @@ var MANTA_DELETE_LOG_DUMP_NAME_PREFIX = 'manta_delete_log-';
 var RUNNING_STATE = 'running';
 
 //In Marlin
+var MARLIN_REDUCER_MEMORY = 4096;
 var MARLIN_PATH_TO_ASSET = MOLA_ASSET_KEY.substring(1);
 var MARLIN_ASSET_KEY = MOLA_ASSET_KEY;
 var MANTA_GC_ALL_DIR = MANTA_GC_DIR + '/all';
@@ -63,12 +64,12 @@ var WHILE_1 = 'env >/tmp/env.txt && \
 while [[ true ]]; do echo Hello; sleep 2; done';
 var ECHO_HELLO = 'echo "Hello World!"';
 
-var ENV_COMMON = 'export PATH=/usr/node/bin:$PATH && \
+var ENV_COMMON = ' \
 export MANTA_USER=' + MANTA_USER + ' && \
 export MANTA_GC=' + GC_JOB_NAME + ' && \
 export MARLIN_JOB=$(echo $MANTA_OUTPUT_BASE | cut -d "/" -f 4) && \
 export NOW=$(date "+%Y-%m-%d-%H-%M-%S") && \
-cd /assets/ && tar -xzf ' + MARLIN_PATH_TO_ASSET + ' && cd mola && \
+cd /assets/ && gtar -xzf ' + MARLIN_PATH_TO_ASSET + ' && cd mola && \
 ';
 /* END JSSTYLED */
 
@@ -82,7 +83,7 @@ function getPgTransformCmd(earliestDumpDate, nReducers) {
 export MORAY_SHARD=$(echo $mc_input_key | cut -d "/" -f 5) && \
 export DUMP_DATE=$(echo $mc_input_key | cut -d "/" -f 6) && \
 zcat | \
-  node ./bin/pg_transform.js -d $DUMP_DATE -e ' + earliestDumpDate + ' \
+  ./build/node/bin/node ./bin/pg_transform.js -d $DUMP_DATE -e ' + earliestDumpDate + ' \
     -m $MORAY_SHARD | \
   msplit -n ' + nReducers + ' \
 ');
@@ -106,9 +107,9 @@ export MANTA_PATTERN=$MANTA_FILE_PRE-{1}-{2} && \
 export MANTA_LINKS=$MANTA_PRE/do/$NOW-$MARLIN_JOB-X-$UUID-links && \
 export PERL=/usr/perl5/bin/perl && \
 export LINKS_FILE=./links.txt && \
-sort | node ./bin/gc.js' + gracePeriodOption + ' | \
+sort | ./build/node/bin/node ./bin/gc.js' + gracePeriodOption + ' | \
   $PERL ./bin/gc_links.pl $MANTA_USER $LINKS_FILE $MANTA_FILE_PRE | \
-  node ./bin/mdemux.js -p $MANTA_PATTERN && \
+  ./build/node/bin/node ./bin/mdemux.js -p $MANTA_PATTERN && \
 cat $LINKS_FILE | mpipe $MANTA_LINKS \
 ');
 }
@@ -119,7 +120,7 @@ function parseOptions() {
         var option;
         var opts = {};
         opts.shards = [];
-        var parser = new getopt.BasicParser('g:m:',
+        var parser = new getopt.BasicParser('g:m:r:',
                                             process.argv);
         while ((option = parser.getopt()) !== undefined && !option.error) {
                 switch (option.option) {
@@ -129,11 +130,18 @@ function parseOptions() {
                 case 'm':
                         opts.shards.push(option.optarg);
                         break;
+                case 'r':
+                        opts.marlinReducerMemory = parseInt(option.optarg, 10);
+                        break;
                 default:
                         usage('Unknown option: ' + option.option);
                         break;
                 }
         }
+
+        opts.marlinReducerMemory = opts.marlinReducerMemory ||
+                MARLIN_REDUCER_MEMORY;
+
         return (opts);
 }
 
@@ -237,7 +245,11 @@ function createGcMarlinJob(opts) {
         //We use the number of shards + 1 so that we know
         // we are always using multiple reducers.  There's
         // no reason this can't be much more.
-        var nReducers = opts.shards.length + 1;
+
+        //MANTA-840
+        //var nReducers = opts.shards.length + 1;
+        var nReducers = 1;
+
         var pgCmd = getPgTransformCmd(opts.earliest_dump, nReducers);
         var gcCmd = getGcCmd(opts.gracePeriodSeconds);
         var job = {
@@ -250,6 +262,7 @@ function createGcMarlinJob(opts) {
                         type: 'reduce',
                         count: nReducers,
                         assets: [ MARLIN_ASSET_KEY ],
+                        memory: opts.marlinReducerMemory,
                         exec: gcCmd
                 } ]
         };
