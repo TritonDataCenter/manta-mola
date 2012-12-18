@@ -16,15 +16,11 @@ function isValidDate(date) {
 }
 
 function parseDate(dateString) {
-        var date = new Date(dateString);
-        if (isValidDate(date)) {
-                return (date);
-        }
-        //So we're cheating a bit here.  File dates come in the format
+        //So we're forcing a weird format here.  File dates come in the format
         // 2012-10-18-23-00-02.
         var parts = dateString.split('-');
-        while (parts.length < 6) {
-                parts.append('00');
+        if (parts.length != 6) {
+                usage('Invalid date: ' + dateString);
         }
         var ds = parts[0] + '-' + parts[1] + '-' + parts[2] + 'T' +
                 parts[3] + ':' + parts[4] + ':' + parts[5] + 'Z';

@@ -59,11 +59,6 @@ var MANTA_GC_MORAY_DIR = MANTA_GC_DIR + '/moray';
 ///--- Marlin Commands
 
 /* BEGIN JSSTYLED */
-//TODO: Delete me
-var WHILE_1 = 'env >/tmp/env.txt && \
-while [[ true ]]; do echo Hello; sleep 2; done';
-var ECHO_HELLO = 'echo "Hello World!"';
-
 var ENV_COMMON = ' \
 export MANTA_USER=' + MANTA_USER + ' && \
 export MANTA_GC=' + GC_JOB_NAME + ' && \
@@ -81,7 +76,7 @@ cd /assets/ && gtar -xzf ' + MARLIN_PATH_TO_ASSET + ' && cd mola && \
 function getPgTransformCmd(earliestDumpDate, nReducers) {
         return (ENV_COMMON + ' \
 export MORAY_SHARD=$(echo $mc_input_key | cut -d "/" -f 5) && \
-export DUMP_DATE=$(echo $mc_input_key | cut -d "/" -f 6) && \
+export DUMP_DATE=$(basename $mc_input_key | sed \'s/^\w*-//; s/.gz$//;\') && \
 zcat | \
   ./build/node/bin/node ./bin/pg_transform.js -d $DUMP_DATE -e ' + earliestDumpDate + ' \
     -m $MORAY_SHARD | \

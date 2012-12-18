@@ -53,3 +53,18 @@ review.
 # Testing
 
     make test
+
+You can also run a full GC cycle locally by first downloading some pg dumps into
+`./tmp/` (make sure nothing else is in there), then:
+
+    EARLIEST=$(ls tmp/ | sed 's/^\w*-//; s/.gz$//;' | sort | head -1); \
+    for f in `ls tmp`; do \
+       export DD=$(echo $f | sed 's/^\w*-//; s/.gz$//;'); \
+       zcat tmp/$f | \
+       node ./bin/pg_transform.js -d $DD -e $EARLIEST \
+         -m 1.moray.coal.joyent.us; \
+    done | sort | node ./bin/gc.js -g 60
+
+The `-g 60` is the grace period.  In order to be cleaned out of mako, the only
+reference to an object will be in the manta_delete_log table and the creation
+date for that record will be more than `-g [seconds]` old.
