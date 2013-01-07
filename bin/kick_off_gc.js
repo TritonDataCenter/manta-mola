@@ -76,7 +76,7 @@ cd /assets/ && gtar -xzf ' + MARLIN_PATH_TO_ASSET + ' && cd mola && \
 function getPgTransformCmd(earliestDumpDate, nReducers) {
         return (ENV_COMMON + ' \
 export MORAY_SHARD=$(echo $mc_input_key | cut -d "/" -f 5) && \
-export DUMP_DATE=$(basename $mc_input_key | sed \'s/^\w*-//; s/.gz$//;\') && \
+export DUMP_DATE=$(basename $mc_input_key | sed \'s/^\\w*-//; s/.gz$//;\') && \
 zcat | \
   ./build/node/bin/node ./bin/pg_transform.js -d $DUMP_DATE -e ' + earliestDumpDate + ' \
     -m $MORAY_SHARD | \
