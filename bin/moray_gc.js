@@ -35,36 +35,80 @@ function ifError(err) {
 }
 
 
-function cleanShard(shard) {
+function morayCleanShard(shard, obj, cb) {
+        var dir = MORAY_CLEANUP_PATH + '/' + shard;
+        var o = dir + '/' + obj.name;
+        var opts = {
+                object: o,
+                mantaClient: MANTA_CLIENT,
+                shard: shard,
+                log: LOG
+        };
+        LOG.info({ shard: shard, object: o }, 'Processing object.');
+        var mc = lib.createMorayCleaner(opts);
+
+        mc.on('error', function (err2) {
+                ifError(err2);
+        });
+
+        mc.on('end', function () {
+                MANTA_CLIENT.unlink(o, {}, function (err2) {
+                        ifError(err2);
+                        LOG.info({ obj: o }, 'Done with obj,');
+                        cb();
+                });
+        });
+}
+
+
+function morayCleanObjects(shard, objects, cb) {
+        if (objects.length < 1) {
+                cb();
+                return;
+        }
+
+        var obj = objects.shift();
+        LOG.info({ objects: objects, obj: obj }, 'Going to clean shard.');
+        morayCleanShard(shard, obj, function (err) {
+                ifError(err);
+                morayCleanObjects(shard, objects, cb);
+        });
+}
+
+
+function cleanShard(shard, cb) {
         var dir = MORAY_CLEANUP_PATH + '/' + shard;
         LOG.info({ shard: shard, dir: dir }, 'Cleaning up shard.');
         MANTA_CLIENT.ls(dir, function (err, res) {
                 ifError(err);
 
+                var objects = [];
+
                 res.on('object', function (obj) {
-                        var o = dir + '/' + obj.name;
-                        var opts = {
-                                object: o,
-                                mantaClient: MANTA_CLIENT,
-                                log: LOG
-                        };
-                        var mc = lib.createMorayCleaner(opts);
-
-                        mc.on('error', function (err2) {
-                                ifError(err2);
-                        });
-
-                        mc.on('end', function () {
-                                MANTA_CLIENT.unlink(o, {}, function (err2) {
-                                        ifError(err2);
-                                        LOG.info({ obj: o }, 'Done with obj,');
-                                });
-                        });
+                        objects.push(obj);
                 });
 
                 res.on('error', function (err2) {
                         ifError(err);
                 });
+
+                res.on('end', function () {
+                        morayCleanObjects(shard, objects, function (err3) {
+                                cb(err3);
+                        });
+                });
+        });
+}
+
+function cleanShards(shards) {
+        if (shards.length < 1) {
+                return;
+        }
+
+        var shard = shards.shift();
+        cleanShard(shard, function (err) {
+                ifError(err);
+                cleanShards(shards);
         });
 }
 
@@ -78,7 +122,6 @@ MANTA_CLIENT.ls(MORAY_CLEANUP_PATH, {}, function (err, res) {
 
         res.on('directory', function (dir) {
                 var shard = dir.name;
-                cleanShard(shard);
                 shards.push(shard);
         });
 
@@ -92,6 +135,7 @@ MANTA_CLIENT.ls(MORAY_CLEANUP_PATH, {}, function (err, res) {
         });
 
         res.on('end', function () {
-                LOG.info({ shards: shards }, 'Cleaned shards.');
+                LOG.info({ shards: shards }, 'Going to clean shards.');
+                cleanShards(shards);
         });
 });
