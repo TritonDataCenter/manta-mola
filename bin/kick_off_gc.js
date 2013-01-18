@@ -36,65 +36,55 @@ var MP = '/' + MANTA_USER + '/stor';
 var BACKUP_DIR = MP + '/manatee_backups';
 var MOLA_CODE_BUNDLE = (process.env.MOLA_CODE_BUNDLE ||
                         '/opt/smartdc/common/bundle/mola.tar.gz');
-var GC_JOB_NAME = 'manta_gc';
-var MANTA_GC_DIR = MP + '/manta_gc';
-var MANTA_ASSET_DIR = MANTA_GC_DIR + '/assets';
-var MOLA_ASSET_KEY = MANTA_ASSET_DIR + '/mola.tar.gz';
 var MANTA_DUMP_NAME_PREFIX = 'manta-';
 var MANTA_DELETE_LOG_DUMP_NAME_PREFIX = 'manta_delete_log-';
 var RUNNING_STATE = 'running';
-
-//In Marlin
-var MARLIN_REDUCER_MEMORY = 4096;
-var MARLIN_PATH_TO_ASSET = MOLA_ASSET_KEY.substring(1);
-var MARLIN_ASSET_KEY = MOLA_ASSET_KEY;
-var MANTA_GC_ALL_DIR = MANTA_GC_DIR + '/all';
-var MANTA_GC_ADO_DIR = MANTA_GC_DIR + '/all/do';
-var MANTA_GC_ADN_DIR = MANTA_GC_DIR + '/all/done';
-var MANTA_GC_MAKO_DIR = MANTA_GC_DIR + '/mako';
-var MANTA_GC_MORAY_DIR = MANTA_GC_DIR + '/moray';
-
-
-
-///--- Marlin Commands
-
-/* BEGIN JSSTYLED */
-var ENV_COMMON = ' \
-export MANTA_USER=' + MANTA_USER + ' && \
-export MANTA_GC=' + GC_JOB_NAME + ' && \
-export MARLIN_JOB=$(echo $MANTA_OUTPUT_BASE | cut -d "/" -f 4) && \
-export NOW=$(date "+%Y-%m-%d-%H-%M-%S") && \
-cd /assets/ && gtar -xzf ' + MARLIN_PATH_TO_ASSET + ' && cd mola && \
-';
-/* END JSSTYLED */
 
 
 
 ///--- Helpers
 
 /* BEGIN JSSTYLED */
-function getPgTransformCmd(earliestDumpDate, nReducers) {
-        return (ENV_COMMON + ' \
-export MORAY_SHARD=$(echo $mc_input_key | cut -d "/" -f 5) && \
-export DUMP_DATE=$(basename $mc_input_key | sed \'s/^\\w*-//; s/.gz$//;\') && \
-zcat | \
-  ./build/node/bin/node ./bin/pg_transform.js -d $DUMP_DATE -e ' + earliestDumpDate + ' \
-    -m $MORAY_SHARD | \
-  msplit -n ' + nReducers + ' \
+function getEnvCommon(opts) {
+        return (' \
+export MANTA_USER=' + MANTA_USER + ' && \
+export MANTA_GC=' + opts.gcJobName + ' && \
+export MARLIN_JOB=$(echo $MANTA_OUTPUT_BASE | cut -d "/" -f 4) && \
+export NOW=$(date "+%Y-%m-%d-%H-%M-%S") && \
+cd /assets/ && gtar -xzf ' + opts.marlinPathToAsset + ' && cd mola && \
 ');
 }
 /* END JSSTYLED */
 
 
 /* BEGIN JSSTYLED */
-function getGcCmd(gracePeriodSeconds) {
+function getPgTransformCmd(opts) {
+        var grepForObject = '';
+        if (opts.objectId) {
+                grepForObject = ' grep ' + opts.objectId + ' |';
+        }
+        return (getEnvCommon(opts) + ' \
+export MORAY_SHARD=$(echo $mc_input_key | cut -d "/" -f 5) && \
+export DUMP_DATE=$(basename $mc_input_key | sed \'s/^\\w*-//; s/.gz$//;\') && \
+zcat | \
+  ./build/node/bin/node ./bin/pg_transform.js -d $DUMP_DATE \
+    -e ' + opts.earliestDumpDate + ' \
+    -m $MORAY_SHARD |' + grepForObject + ' \
+  msplit -n ' + opts.numberReducers + ' \
+');
+}
+/* END JSSTYLED */
+
+
+/* BEGIN JSSTYLED */
+function getGcCmd(opts) {
         var gracePeriodOption = '';
-        if (gracePeriodSeconds) {
-                gracePeriodOption = ' -g ' + gracePeriodSeconds;
+        if (opts.gracePeriodSeconds) {
+                gracePeriodOption = ' -g ' + opts.gracePeriodSeconds;
         }
         //We use a UUID only because there's no way (yet) to get a reference
         // to which reducer this is running on.
-        return (ENV_COMMON + ' \
+        return (getEnvCommon(opts) + ' \
 export UUID=$(uuid) && \
 export MANTA_PRE=/$MANTA_USER/stor/$MANTA_GC/all && \
 export MANTA_FILE_PRE=$MANTA_PRE/done/$NOW-$MARLIN_JOB-X-$UUID && \
@@ -115,7 +105,7 @@ function parseOptions() {
         var option;
         var opts = {};
         opts.shards = [];
-        var parser = new getopt.BasicParser('g:m:r:',
+        var parser = new getopt.BasicParser('g:m:o:r:t',
                                             process.argv);
         while ((option = parser.getopt()) !== undefined && !option.error) {
                 switch (option.option) {
@@ -125,8 +115,15 @@ function parseOptions() {
                 case 'm':
                         opts.shards.push(option.optarg);
                         break;
+                case 'o':
+                        opts.objectId = option.optarg;
+                        break;
                 case 'r':
                         opts.marlinReducerMemory = parseInt(option.optarg, 10);
+                        break;
+                case 't':
+                        opts.gcJobName = 'manta_gc_test';
+                        opts.mantaGcDir = MP + '/manta_gc_test';
                         break;
                 default:
                         usage('Unknown option: ' + option.option);
@@ -134,8 +131,21 @@ function parseOptions() {
                 }
         }
 
-        opts.marlinReducerMemory = opts.marlinReducerMemory ||
-                MARLIN_REDUCER_MEMORY;
+        //Set up some defaults...
+        opts.gcJobName = opts.gcJobName || 'manta_gc';
+        opts.mantaGcDir = opts.mantaGcDir || MP + '/manta_gc';
+        opts.mantaAssetDir = opts.mantaGcDir + '/assets';
+        opts.molaAssetKey = opts.mantaAssetDir + '/mola.tar.gz';
+
+        opts.marlinReducerMemory = opts.marlinReducerMemory || 4096;
+        opts.marlinPathToAsset = opts.molaAssetKey.substring(1);
+        opts.marlinAssetKey = opts.molaAssetKey;
+
+        opts.mantaGcAllDir = opts.mantaGcDir + '/all';
+        opts.mantaGcAdoDir = opts.mantaGcDir + '/all/do';
+        opts.mantaGcAdoneDir = opts.mantaGcDir + '/all/done';
+        opts.mantaGcMakoDir = opts.mantaGcDir + '/mako';
+        opts.mantaGcMorayDir = opts.mantaGcDir + '/moray';
 
         return (opts);
 }
@@ -147,6 +157,10 @@ function usage(msg) {
         }
         var str  = 'usage: ' + path.basename(process.argv[1]);
         str += ' [-g grace_period_seconds]';
+        str += ' [-m moray_shard]';
+        str += ' [-o object_id]';
+        str += ' [-r marlin_reducer_memory]';
+        str += ' [-t output_to_test]';
         console.error(str);
         process.exit(1);
 }
@@ -243,20 +257,20 @@ function createGcMarlinJob(opts) {
 
         //MANTA-840
         //var nReducers = opts.shards.length + 1;
-        var nReducers = 1;
+        opts.numberReducers = 1;
 
-        var pgCmd = getPgTransformCmd(opts.earliest_dump, nReducers);
-        var gcCmd = getGcCmd(opts.gracePeriodSeconds);
+        var pgCmd = getPgTransformCmd(opts);
+        var gcCmd = getGcCmd(opts);
         var job = {
-                name: GC_JOB_NAME,
+                name: opts.gcJobName,
                 phases: [ {
                         type: 'storage-map',
-                        assets: [ MARLIN_ASSET_KEY ],
+                        assets: [ opts.marlinAssetKey ],
                         exec: pgCmd
                 }, {
                         type: 'reduce',
-                        count: nReducers,
-                        assets: [ MARLIN_ASSET_KEY ],
+                        count: opts.numberReducers,
+                        assets: [ opts.marlinAssetKey ],
                         memory: opts.marlinReducerMemory,
                         exec: gcCmd
                 } ]
@@ -292,13 +306,13 @@ function setupGcMarlinJob(opts) {
         var m = MANTA_CLIENT;
         vasync.pipeline({
                 funcs: [
-                        function (_, cb) { m.mkdir(MANTA_GC_DIR, cb); },
-                        function (_, cb) { m.mkdir(MANTA_ASSET_DIR, cb); },
-                        function (_, cb) { m.mkdir(MANTA_GC_ALL_DIR, cb); },
-                        function (_, cb) { m.mkdir(MANTA_GC_ADO_DIR, cb); },
-                        function (_, cb) { m.mkdir(MANTA_GC_ADN_DIR, cb); },
-                        function (_, cb) { m.mkdir(MANTA_GC_MAKO_DIR, cb); },
-                        function (_, cb) { m.mkdir(MANTA_GC_MORAY_DIR, cb); }
+                        function (_, cb) { m.mkdir(opts.mantaGcDir, cb); },
+                        function (_, cb) { m.mkdir(opts.mantaAssetDir, cb); },
+                        function (_, cb) { m.mkdir(opts.mantaGcAllDir, cb); },
+                        function (_, cb) { m.mkdir(opts.mantaGcAdoDir, cb); },
+                        function (_, cb) { m.mkdir(opts.mantaGcAdoneDir, cb); },
+                        function (_, cb) { m.mkdir(opts.mantaGcMakoDir, cb); },
+                        function (_, cb) { m.mkdir(opts.mantaGcMorayDir, cb); }
                 ]
         }, function (err) {
                 ifError(err);
@@ -319,7 +333,7 @@ function setupGcMarlinJob(opts) {
                         };
 
                         var s = fs.createReadStream(MOLA_CODE_BUNDLE);
-                        var p = MOLA_ASSET_KEY;
+                        var p = opts.molaAssetKey;
                         s.pause();
                         s.on('open', function () {
                                 MANTA_CLIENT.put(p, s, o, function (e) {
@@ -390,10 +404,8 @@ function runGcWithShards(opts) {
 
                 dates.sort();
                 LOG.info({ dates: dates }, 'found dates');
-                var earliest_dump = dates[0];
-
+                opts.earliestDumpDate = dates[0];
                 opts.keys = keys;
-                opts.earliest_dump = earliest_dump;
                 setupGcMarlinJob(opts);
         });
 }
@@ -447,7 +459,7 @@ MANTA_CLIENT.listJobs({ state: RUNNING_STATE }, function (err, res) {
         var gcObject = {};
 
         res.on('job', function (job) {
-                if (job.name.indexOf(GC_JOB_NAME) === 0) {
+                if (job.name.indexOf(_opts.gcJobName) === 0) {
                         gcRunning = true;
                         gcObject = job;
                 }
