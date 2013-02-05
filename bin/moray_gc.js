@@ -3,17 +3,18 @@
 // Copyright 2012 Joyent, Inc.  All rights reserved.
 
 var bunyan = require('bunyan');
+var exec = require('child_process').exec;
+var fs = require('fs');
 var getopt = require('posix-getopt');
 var lib = require('../lib');
 var manta = require('manta');
 var path = require('path');
 
 
-
 ///--- Globals
 
 var LOG = bunyan.createLogger({
-        level: (process.env.LOG_LEVEL || 'info'),
+        level: (process.env.LOG_LEVEL || 'debug'),
         name: 'moray_gc',
         stream: process.stdout
 });
@@ -23,6 +24,7 @@ var MANTA_CLIENT = manta.createClientFromFileSync(MANTA_CONFIG, LOG);
 var MANTA_USER = MANTA_CLIENT.user;
 var MORAY_CLEANUP_PATH = '/' + MANTA_USER + '/stor/manta_gc/moray';
 var MORAY_CLEANER = lib.createMorayCleaner({ log: LOG });
+var PID_FILE = '/var/tmp/moray_gc.pid';
 MORAY_CLEANER.on('error', function (err) {
         if (err) {
                 LOG.fatal(err);
@@ -136,7 +138,7 @@ function cleanShards(shards, cb) {
 }
 
 
-function start(cb) {
+function startGc(cb) {
         MANTA_CLIENT.ls(MORAY_CLEANUP_PATH, {}, function (err, res) {
                 if (err) {
                         cb(err);
@@ -170,10 +172,74 @@ function start(cb) {
 }
 
 
+function checkAlreadyRunning(cb) {
+        function recordPid() {
+                LOG.debug('Taking process ownership.');
+                fs.writeFileSync(PID_FILE, process.pid, 'utf8');
+                startGc(function (err) {
+                        cleanupPidFile(function () {
+                                cb(err);
+                        });
+                });
+        }
+
+        fs.stat(PID_FILE, function (err, stat) {
+                if (err && err.code === 'ENOENT') {
+                        recordPid();
+                        return;
+                }
+
+                if (err && err) {
+                        cb(err);
+                        return;
+                }
+
+                if (!stat.isFile()) {
+                        recordPid();
+                        return;
+                }
+
+                var pid = fs.readFileSync(PID_FILE, 'utf8');
+                LOG.debug({ file: PID_FILE, foundPid: pid },
+                          'Found process in pid file.');
+
+                if (pid === '' || pid.length < 1) {
+                        recordPid();
+                        return;
+                }
+
+                exec('ps ' + pid, function (err2, stdout, stderr) {
+                        if (err2) {
+                                cb(err);
+                                return;
+                        }
+
+                        LOG.debug({ stdout: stdout }, 'Got output.');
+                        var lines = stdout.split('\n');
+                        if (lines.length > 1 && lines[1].length > 0 &&
+                            lines[1].indexOf(pid) !== -1) {
+                                LOG.info({
+                                        foundPid: pid
+                                }, 'Moray GC process already running.');
+                                cb();
+                                return;
+                        }
+                        recordPid();
+                        return;
+                });
+        });
+}
+
+
+function cleanupPidFile(cb) {
+        fs.unlinkSync(PID_FILE);
+        cb();
+}
+
 
 ///--- Main
 
-start(function (err) {
+checkAlreadyRunning(function (err) {
         if (err) {
                 LOG.fatal(err);
                 process.exit(1);
