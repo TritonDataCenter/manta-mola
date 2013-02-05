@@ -14,7 +14,7 @@ var path = require('path');
 ///--- Globals
 
 var LOG = bunyan.createLogger({
-        level: (process.env.LOG_LEVEL || 'debug'),
+        level: (process.env.LOG_LEVEL || 'info'),
         name: 'moray_gc',
         stream: process.stdout
 });
