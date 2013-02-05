@@ -166,14 +166,6 @@ function usage(msg) {
 }
 
 
-function ifError(err, msg) {
-        if (err) {
-                LOG.error(err, msg);
-                process.exit(1);
-        }
-}
-
-
 function startsWith(str, prefix) {
         return (str.slice(0, prefix.length) === prefix);
 }
@@ -187,7 +179,10 @@ function endsWith(str, suffix) {
 function getObjectsInDir(dir, cb) {
         var keys = [];
         MANTA_CLIENT.ls(dir, {}, function (err, res) {
-                ifError(err);
+                if (err) {
+                        cb(err);
+                        return;
+                }
 
                 res.on('object', function (obj) {
                         keys.push(dir + '/' + obj.name);
@@ -215,7 +210,10 @@ function findLatestBackupObjects(opts, cb) {
         var dir = opts.dir;
 
         MANTA_CLIENT.ls(dir, {}, function (err, res) {
-                ifError(err);
+                if (err) {
+                        cb(err);
+                        return;
+                }
 
                 var dirs = [];
                 var objs = [];
@@ -250,7 +248,7 @@ function findLatestBackupObjects(opts, cb) {
 }
 
 
-function createGcMarlinJob(opts) {
+function createGcMarlinJob(opts, cb) {
         //We use the number of shards + 1 so that we know
         // we are always using multiple reducers.  There's
         // no reason this can't be much more.
@@ -279,7 +277,10 @@ function createGcMarlinJob(opts) {
         LOG.info({ job: job }, 'GC Marlin Job Definition');
 
         MANTA_CLIENT.createJob(job, function (err, jobId) {
-                ifError(err);
+                if (err) {
+                        cb(err);
+                        return;
+                }
 
                 LOG.info({ jobId: jobId }, 'Created Job.');
                 var aopts = {
@@ -289,37 +290,53 @@ function createGcMarlinJob(opts) {
 
                 //Add keys to job...
                 MANTA_CLIENT.addJobKey(jobId, keys, aopts, function (err2) {
-                        ifError(err2);
+                        if (err2) {
+                                cb(err2);
+                                return;
+                        }
 
                         LOG.info({
                                 keys: keys,
                                 jobId: jobId
                         }, 'Added keys to job');
                         LOG.info('Done for now.');
+                        cb();
                 });
         });
 }
 
 
-function setupGcMarlinJob(opts) {
-        //Make sure the right directories have been created...
+function setupGcDirectories(opts, cb) {
         var m = MANTA_CLIENT;
         vasync.pipeline({
                 funcs: [
-                        function (_, cb) { m.mkdir(opts.mantaGcDir, cb); },
-                        function (_, cb) { m.mkdir(opts.mantaAssetDir, cb); },
-                        function (_, cb) { m.mkdir(opts.mantaGcAllDir, cb); },
-                        function (_, cb) { m.mkdir(opts.mantaGcAdoDir, cb); },
-                        function (_, cb) { m.mkdir(opts.mantaGcAdoneDir, cb); },
-                        function (_, cb) { m.mkdir(opts.mantaGcMakoDir, cb); },
-                        function (_, cb) { m.mkdir(opts.mantaGcMorayDir, cb); }
+                        function (_, c) { m.mkdir(opts.mantaGcDir, c); },
+                        function (_, c) { m.mkdir(opts.mantaAssetDir, c); },
+                        function (_, c) { m.mkdir(opts.mantaGcAllDir, c); },
+                        function (_, c) { m.mkdir(opts.mantaGcAdoDir, c); },
+                        function (_, c) { m.mkdir(opts.mantaGcAdoneDir, c); },
+                        function (_, c) { m.mkdir(opts.mantaGcMakoDir, c); },
+                        function (_, c) { m.mkdir(opts.mantaGcMorayDir, c); }
                 ]
         }, function (err) {
-                ifError(err);
+                cb(err);
+        });
+}
+
+
+function setupGcMarlinJob(opts, cb) {
+        setupGcDirectories(opts, function (err) {
+                if (err) {
+                        cb(err);
+                        return;
+                }
 
                 //Upload the bundle to manta
                 fs.stat(MOLA_CODE_BUNDLE, function (err2, stats) {
-                        ifError(err2);
+                        if (err2) {
+                                cb(err2);
+                                return;
+                        }
 
                         if (!stats.isFile()) {
                                 LOG.error(MOLA_CODE_BUNDLE +
@@ -337,8 +354,11 @@ function setupGcMarlinJob(opts) {
                         s.pause();
                         s.on('open', function () {
                                 MANTA_CLIENT.put(p, s, o, function (e) {
-                                        ifError(e);
-                                        createGcMarlinJob(opts);
+                                        if (e) {
+                                                cb(e);
+                                                return;
+                                        }
+                                        createGcMarlinJob(opts, cb);
                                 });
                         });
                 });
@@ -355,14 +375,17 @@ function extractDate(prefix, filename) {
 }
 
 
-function runGcWithShards(opts) {
+function runGcWithShards(opts, cb) {
         LOG.info({ opts: opts }, 'Running GC with shards.');
         var shards = opts.shards;
         vasync.forEachParallel({
                 func: findLatestBackupObjects,
                 inputs: shards
         }, function (err, results) {
-                ifError(err);
+                if (err) {
+                        cb(err);
+                        return;
+                }
                 if (results.successes.length !== shards.length) {
                         LOG.error('Couldnt find latest backup for all shards.');
                         process.exit(1);
@@ -406,7 +429,7 @@ function runGcWithShards(opts) {
                 LOG.info({ dates: dates }, 'found dates');
                 opts.earliestDumpDate = dates[0];
                 opts.keys = keys;
-                setupGcMarlinJob(opts);
+                setupGcMarlinJob(opts, cb);
         });
 }
 
@@ -415,7 +438,10 @@ function getShardsFromMdata(cb) {
         var cmd = 'mdata-get moray_indexer_names';
         LOG.info({ cmd: cmd }, 'fetching data from mdata');
         exec(cmd, function (err, stdout, stderr) {
-                ifError(err, 'fetching from mdata failed.');
+                if (err) {
+                        cb(err);
+                        return;
+                }
                 var shards = stdout.split(/\s+/);
                 while (shards[shards.length - 1] === '') {
                         shards.pop();
@@ -425,14 +451,17 @@ function getShardsFromMdata(cb) {
 }
 
 
-function findShards(opts) {
+function findShards(opts, cb) {
         //This means the one running the command is responsible for
         // giving the correct set of shards...
         if (opts.shards && opts.shards.length > 0) {
-                runGcWithShards(opts);
+                runGcWithShards(opts, cb);
         } else {
                 getShardsFromMdata(function (err2, mdataShards) {
-                        ifError(err2);
+                        if (err2) {
+                                cb(err2);
+                                return;
+                        }
 
                         if (mdataShards.length === 0) {
                                 var m = 'no moray shards found in mdata.';
@@ -440,9 +469,54 @@ function findShards(opts) {
                                 process.exit(0);
                         }
                         opts.shards = mdataShards;
-                        runGcWithShards(opts);
+                        runGcWithShards(opts, cb);
                 });
         }
+}
+
+
+function findRunningGcJobs(opts, cb) {
+        var lopts = { state: RUNNING_STATE };
+        MANTA_CLIENT.listJobs(lopts, function (err, res) {
+                if (err) {
+                        cb(err);
+                        return;
+                }
+
+                var gcObject = null;
+
+                res.on('job', function (job) {
+                        if (job.name.indexOf(opts.gcJobName) === 0) {
+                                gcObject = job;
+                        }
+                });
+
+                res.on('error', function (err3) {
+                        cb(err3);
+                });
+
+                res.on('end', function () {
+                        cb(null, gcObject);
+                });
+        });
+}
+
+
+function checkForRunningJobs(opts, cb) {
+        findRunningGcJobs(opts, function (err, job) {
+                if (err) {
+                        cb(err);
+                        return;
+                }
+
+                if (job) {
+                        LOG.info(job, 'GC Job already running.');
+                        cb();
+                        return;
+                }
+
+                findShards(opts, cb);
+        });
 }
 
 
@@ -451,30 +525,10 @@ function findShards(opts) {
 
 var _opts = parseOptions();
 
-//If a job is already running, kick out.
-MANTA_CLIENT.listJobs({ state: RUNNING_STATE }, function (err, res) {
-        ifError(err);
-
-        var gcRunning = false;
-        var gcObject = {};
-
-        res.on('job', function (job) {
-                if (job.name.indexOf(_opts.gcJobName) === 0) {
-                        gcRunning = true;
-                        gcObject = job;
-                }
-        });
-
-        res.on('error', function (err3) {
-                LOG.error(err3);
-                process.exit(1);
-        });
-
-        res.on('end', function () {
-                if (gcRunning) {
-                        LOG.info(gcObject, 'GC Job already running.');
-                        process.exit(1);
-                }
-                findShards(_opts);
-        });
+checkForRunningJobs(_opts, function (err) {
+        if (err) {
+                LOG.fatal(err, 'Error.');
+        }
+        //TODO: Write out audit record.
+        process.exit(0);
 });

@@ -24,7 +24,7 @@ function parseDate(dateString) {
         }
         var ds = parts[0] + '-' + parts[1] + '-' + parts[2] + 'T' +
                 parts[3] + ':' + parts[4] + ':' + parts[5] + 'Z';
-        date = new Date(ds);
+        var date = new Date(ds);
         if (isValidDate(date)) {
                 return (date);
         }
