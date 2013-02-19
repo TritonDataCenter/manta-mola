@@ -27,6 +27,13 @@ var MANTA_CONFIG = (process.env.MANTA_CONFIG ||
                     '/opt/smartdc/common/etc/config.json');
 var MANTA_CLIENT = manta.createClientFromFileSync(MANTA_CONFIG, LOG);
 var MANTA_USER = MANTA_CLIENT.user;
+var AUDIT = {
+        "audit": true,
+        "startedJob": 0,
+        "cronFailed": 1,
+        "startTime": new Date(),
+        "currentJobSecondsRunning": undefined
+}
 
 
 
@@ -282,6 +289,7 @@ function createGcMarlinJob(opts, cb) {
                         return;
                 }
 
+                opts.jobId = jobId;
                 LOG.info({ jobId: jobId }, 'Created Job.');
                 var aopts = {
                         end: true
@@ -299,6 +307,9 @@ function createGcMarlinJob(opts, cb) {
                                 keys: keys,
                                 jobId: jobId
                         }, 'Added keys to job');
+
+                        AUDIT.numberOfKeys = keys.length;
+                        AUDIT.startedJob = 1;
                         LOG.info('Done for now.');
                         cb();
                 });
@@ -339,9 +350,9 @@ function setupGcMarlinJob(opts, cb) {
                         }
 
                         if (!stats.isFile()) {
-                                LOG.error(MOLA_CODE_BUNDLE +
-                                          ' isnt a file');
-                                process.exit(1);
+                                cb(new Error(MOLA_CODE_BUNDLE +
+                                             ' isn\'t a file'));
+                                return;
                         }
 
                         var o = {
@@ -387,8 +398,9 @@ function runGcWithShards(opts, cb) {
                         return;
                 }
                 if (results.successes.length !== shards.length) {
-                        LOG.error('Couldnt find latest backup for all shards.');
-                        process.exit(1);
+                        cb(new Error('Couldnt find latest backup for all ' +
+                                     'shards.'));
+                        return;
                 }
 
                 var keys = [];
@@ -418,10 +430,12 @@ function runGcWithShards(opts, cb) {
                         }
 
                         if (!foundManta || !foundMantaDeleteLog) {
+                                var m = 'Couldnt find all tables in dump ' +
+                                        'directory.';
                                 LOG.error({ dir: dir, objs: objs },
-                                          'Couldnt find all tables in dump ' +
-                                          'directory.');
-                                process.exit(1);
+                                          m);
+                                cb(new Error(m));
+                                return;
                         }
                 }
 
@@ -464,10 +478,11 @@ function findShards(opts, cb) {
                         }
 
                         if (mdataShards.length === 0) {
-                                var m = 'no moray shards found in mdata.';
-                                LOG.info(m);
-                                process.exit(0);
+                                LOG.info('no moray shards found in mdata.');
+                                cb();
+                                return;
                         }
+                        AUDIT.numberOfShards = mdataShards.length;
                         opts.shards = mdataShards;
                         runGcWithShards(opts, cb);
                 });
@@ -510,6 +525,11 @@ function checkForRunningJobs(opts, cb) {
                 }
 
                 if (job) {
+                        var started = (new Date(job.timeCreated)).getTime() /
+                                1000;
+                        var now = (new Date()).getTime() / 1000;
+                        AUDIT.currentJobSecondsRunning =
+                                Math.round(now - started);
                         LOG.info(job, 'GC Job already running.');
                         cb();
                         return;
@@ -528,7 +548,15 @@ var _opts = parseOptions();
 checkForRunningJobs(_opts, function (err) {
         if (err) {
                 LOG.fatal(err, 'Error.');
+        } else {
+                AUDIT.cronFailed = 0;
         }
-        //TODO: Write out audit record.
+
+        //Write out audit record.
+        AUDIT.endTime = new Date();
+        AUDIT.cronRunMillis = (AUDIT.endTime.getTime() -
+                               AUDIT.startTime.getTime());
+        AUDIT.opts = _opts;
+        LOG.info(AUDIT);
         process.exit(0);
 });
