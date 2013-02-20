@@ -9,6 +9,7 @@ var getopt = require('posix-getopt');
 var exec = require('child_process').exec;
 var lib = require('../lib');
 var manta = require('manta');
+var MemoryStream = require('memorystream');
 var path = require('path');
 var sys = require('sys');
 var vasync = require('vasync');
@@ -28,16 +29,15 @@ var MANTA_CONFIG = (process.env.MANTA_CONFIG ||
 var MANTA_CLIENT = manta.createClientFromFileSync(MANTA_CONFIG, LOG);
 var MANTA_USER = MANTA_CLIENT.user;
 var AUDIT = {
-        "audit": true,
-        "startedJob": 0,
-        "cronFailed": 1,
-        "startTime": new Date(),
-        "currentJobSecondsRunning": undefined
-}
+        'audit': true,
+        'startedJob': 0,
+        'cronFailed': 1,
+        'startTime': new Date()
+};
 
 
 
-///--- Global Strings
+///--- Global Constants
 
 var MP = '/' + MANTA_USER + '/stor';
 var BACKUP_DIR = MP + '/manatee_backups';
@@ -46,6 +46,7 @@ var MOLA_CODE_BUNDLE = (process.env.MOLA_CODE_BUNDLE ||
 var MANTA_DUMP_NAME_PREFIX = 'manta-';
 var MANTA_DELETE_LOG_DUMP_NAME_PREFIX = 'manta_delete_log-';
 var RUNNING_STATE = 'running';
+var MAX_SECONDS_IN_AUDIT_OBJECT = 60 * 60 * 24 * 7; // 7 days
 
 
 
@@ -142,11 +143,12 @@ function parseOptions() {
         opts.gcJobName = opts.gcJobName || 'manta_gc';
         opts.mantaGcDir = opts.mantaGcDir || MP + '/manta_gc';
         opts.mantaAssetDir = opts.mantaGcDir + '/assets';
-        opts.molaAssetKey = opts.mantaAssetDir + '/mola.tar.gz';
+        opts.molaAssetObject = opts.mantaAssetDir + '/mola.tar.gz';
+        opts.molaPreviousJobsObject = opts.mantaGcDir + '/jobs.json';
 
         opts.marlinReducerMemory = opts.marlinReducerMemory || 4096;
-        opts.marlinPathToAsset = opts.molaAssetKey.substring(1);
-        opts.marlinAssetKey = opts.molaAssetKey;
+        opts.marlinPathToAsset = opts.molaAssetObject.substring(1);
+        opts.marlinAssetObject = opts.molaAssetObject;
 
         opts.mantaGcAllDir = opts.mantaGcDir + '/all';
         opts.mantaGcAdoDir = opts.mantaGcDir + '/all/do';
@@ -183,8 +185,39 @@ function endsWith(str, suffix) {
 }
 
 
+function getObject(objectPath, cb) {
+        var res = '';
+        MANTA_CLIENT.get(objectPath, {}, function (err, stream) {
+                if (err) {
+                        cb(err);
+                        return;
+                }
+
+                stream.on('error', function (err1) {
+                        cb(err1);
+                        return;
+                });
+
+                stream.on('data', function (data) {
+                        res += data;
+                });
+
+                stream.on('end', function () {
+                        cb(null, res);
+                });
+        });
+}
+
+
+function getJob(jobId, cb) {
+        MANTA_CLIENT.job(jobId, function (err, job) {
+                cb(err, job);
+        });
+}
+
+
 function getObjectsInDir(dir, cb) {
-        var keys = [];
+        var objects = [];
         MANTA_CLIENT.ls(dir, {}, function (err, res) {
                 if (err) {
                         cb(err);
@@ -192,7 +225,7 @@ function getObjectsInDir(dir, cb) {
                 }
 
                 res.on('object', function (obj) {
-                        keys.push(dir + '/' + obj.name);
+                        objects.push(dir + '/' + obj.name);
                 });
 
                 res.once('error', function (err2) {
@@ -200,7 +233,7 @@ function getObjectsInDir(dir, cb) {
                 });
 
                 res.once('end', function () {
-                        cb(null, keys);
+                        cb(null, objects);
                 });
         });
 }
@@ -270,12 +303,12 @@ function createGcMarlinJob(opts, cb) {
                 name: opts.gcJobName,
                 phases: [ {
                         type: 'storage-map',
-                        assets: [ opts.marlinAssetKey ],
+                        assets: [ opts.marlinAssetObject ],
                         exec: pgCmd
                 }, {
                         type: 'reduce',
                         count: opts.numberReducers,
-                        assets: [ opts.marlinAssetKey ],
+                        assets: [ opts.marlinAssetObject ],
                         memory: opts.marlinReducerMemory,
                         exec: gcCmd
                 } ]
@@ -290,25 +323,31 @@ function createGcMarlinJob(opts, cb) {
                 }
 
                 opts.jobId = jobId;
+                //Create the previous job record
+                opts.previousJobs[jobId] = {
+                        'timeCreated': new Date(),
+                        'audited': false
+                };
+
                 LOG.info({ jobId: jobId }, 'Created Job.');
                 var aopts = {
                         end: true
                 };
-                var keys = opts.keys;
+                var objects = opts.objects;
 
-                //Add keys to job...
-                MANTA_CLIENT.addJobKey(jobId, keys, aopts, function (err2) {
+                //Add objects to job...
+                MANTA_CLIENT.addJobKey(jobId, objects, aopts, function (err2) {
                         if (err2) {
                                 cb(err2);
                                 return;
                         }
 
                         LOG.info({
-                                keys: keys,
+                                objects: objects,
                                 jobId: jobId
-                        }, 'Added keys to job');
+                        }, 'Added objects to job');
 
-                        AUDIT.numberOfKeys = keys.length;
+                        AUDIT.numberOfObjects = objects.length;
                         AUDIT.startedJob = 1;
                         LOG.info('Done for now.');
                         cb();
@@ -361,7 +400,7 @@ function setupGcMarlinJob(opts, cb) {
                         };
 
                         var s = fs.createReadStream(MOLA_CODE_BUNDLE);
-                        var p = opts.molaAssetKey;
+                        var p = opts.molaAssetObject;
                         s.pause();
                         s.on('open', function () {
                                 MANTA_CLIENT.put(p, s, o, function (e) {
@@ -403,7 +442,7 @@ function runGcWithShards(opts, cb) {
                         return;
                 }
 
-                var keys = [];
+                var objects = [];
                 var dates = [];
 
                 for (var i = 0; i < shards.length; ++i) {
@@ -420,12 +459,12 @@ function runGcWithShards(opts, cb) {
                                 var obj = objs[j];
                                 if (startsWith(obj, mdnp)) {
                                         foundManta = true;
-                                        keys.push(dir + '/' + obj);
+                                        objects.push(dir + '/' + obj);
                                         //Get the date from the filename...
                                         dates.push(extractDate(mdnp, obj));
                                 } else if (startsWith(obj, mdldnp)) {
                                         foundMantaDeleteLog = true;
-                                        keys.push(dir + '/' + obj);
+                                        objects.push(dir + '/' + obj);
                                 }
                         }
 
@@ -442,7 +481,7 @@ function runGcWithShards(opts, cb) {
                 dates.sort();
                 LOG.info({ dates: dates }, 'found dates');
                 opts.earliestDumpDate = dates[0];
-                opts.keys = keys;
+                opts.objects = objects;
                 setupGcMarlinJob(opts, cb);
         });
 }
@@ -501,7 +540,7 @@ function findRunningGcJobs(opts, cb) {
                 var gcObject = null;
 
                 res.on('job', function (job) {
-                        if (job.name.indexOf(opts.gcJobName) === 0) {
+                        if (job.name === opts.gcJobName) {
                                 gcObject = job;
                         }
                 });
@@ -535,8 +574,135 @@ function checkForRunningJobs(opts, cb) {
                         return;
                 }
 
+
                 findShards(opts, cb);
         });
+}
+
+
+
+///--- Auditing previous jobs
+
+function auditJob(job) {
+        if (job.state === 'running') {
+                return (false);
+        }
+
+        var audit = {
+                audit: true,
+                id: job.id
+        };
+
+        if (job.stats && job.stats.errors) {
+                audit.jobErrors = job.stats.errors;
+        } else {
+                audit.jobErrors = 0;
+        }
+
+        audit.timeCreated = job.timeCreated;
+        audit.jobDurationMillis =
+                Math.round((new Date(job.timeDone)).getTime()) -
+                Math.round((new Date(job.timeCreated)).getTime());
+
+        LOG.info(audit, 'audit');
+
+        return (true);
+}
+
+
+function auditPreviousJobs(opts, cb) {
+        LOG.info('Auditing previous jobs.');
+        var objPath = opts.molaPreviousJobsObject;
+        opts.previousJobs = {};
+        getObject(objPath, function (err, data) {
+                if (err && err.code === 'ResourceNotFound') {
+                        LOG.info(objPath + ' doesn\'t exist yet.');
+                        cb();
+                        return;
+                }
+                if (err) {
+                        cb(err);
+                        return;
+                }
+
+                try {
+                        var pJobs = JSON.parse(data);
+                        opts.previousJobs = pJobs;
+                } catch (err2) {
+                        cb(err2);
+                        return;
+                }
+
+                var jobsToAudit = [];
+                var jobsToDelete = [];
+                for (var jobId in pJobs) {
+                        var job = pJobs[jobId];
+                        var now = (new Date()).getTime();
+                        var created = (new Date(job.timeCreated)).getTime();
+                        var secondsSinceDone = Math.round(
+                                (now - created) / 1000);
+                        if (!job.audited) {
+                                jobsToAudit.push(jobId);
+                        }
+                        if (secondsSinceDone >
+                            MAX_SECONDS_IN_AUDIT_OBJECT) {
+                                jobsToDelete.push(jobId);
+                        }
+                }
+
+                if (jobsToAudit.length === 0) {
+                        LOG.info('No jobs to audit.');
+                        cb();
+                        return;
+                }
+
+                vasync.forEachParallel({
+                        func: getJob,
+                        inputs: jobsToAudit
+                }, function (err2, results) {
+                        if (err2) {
+                                cb(err2);
+                                return;
+                        }
+
+                        var i;
+                        for (i = 0; i < jobsToAudit.length; ++i) {
+                                var cJob = results.successes[i];
+                                var cJobId = jobsToAudit[i];
+                                if (auditJob(cJob)) {
+                                        pJobs[cJobId].audited = true;
+                                }
+                        }
+
+                        for (i = 0; i < jobsToDelete.length; ++i) {
+                                var dJobId = jobsToDelete[i];
+                                if (pJobs[dJobId].audited) {
+                                        delete pJobs[dJobId];
+                                }
+                        }
+
+                        opts.previousJobs = pJobs;
+                        cb();
+                });
+        });
+}
+
+
+function recordJobs(opts, cb) {
+        var recordString = JSON.stringify(opts.previousJobs);
+        var o = { size: Buffer.byteLength(recordString) };
+        var s = new MemoryStream();
+
+        var objPath = opts.molaPreviousJobsObject;
+        MANTA_CLIENT.put(objPath, s, o, function (err2) {
+                cb(err2);
+        });
+
+        process.nextTick(function () {
+                s.write(recordString);
+                s.end();
+        });
+
 }
 
 
@@ -545,18 +711,31 @@ function checkForRunningJobs(opts, cb) {
 
 var _opts = parseOptions();
 
-checkForRunningJobs(_opts, function (err) {
+auditPreviousJobs(_opts, function (err) {
         if (err) {
-                LOG.fatal(err, 'Error.');
-        } else {
-                AUDIT.cronFailed = 0;
+                //We don't care that it failed, so we just log and continue.
+                LOG.error(err);
         }
 
-        //Write out audit record.
-        AUDIT.endTime = new Date();
-        AUDIT.cronRunMillis = (AUDIT.endTime.getTime() -
-                               AUDIT.startTime.getTime());
-        AUDIT.opts = _opts;
-        LOG.info(AUDIT);
-        process.exit(0);
+        checkForRunningJobs(_opts, function (err2) {
+                if (err2) {
+                        LOG.fatal(err2, 'Error.');
+                } else {
+                        AUDIT.cronFailed = 0;
+                }
+
+                recordJobs(_opts, function (err3) {
+                        if (err3) {
+                                LOG.error(err3, 'Error saving audit records.');
+                        }
+
+                        //Write out audit record.
+                        AUDIT.endTime = new Date();
+                        AUDIT.cronRunMillis = (AUDIT.endTime.getTime() -
+                                               AUDIT.startTime.getTime());
+                        AUDIT.opts = _opts;
+                        LOG.info(AUDIT, 'audit');
+                        process.exit(AUDIT.cronFailed);
+                });
+        });
 });
