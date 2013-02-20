@@ -6,10 +6,15 @@ export PATH=/opt/smartdc/mola/build/node/bin:/opt/smartdc/mola/node_modules/mant
 [ -z $MANTA_USER ] && export MANTA_USER=poseidon
 
 MDIR=/$MANTA_USER/stor/manta_gc/all/do
-NOW=`date`
+NOW=`date "+%Y-%m-%dT%H:%M:%S.000Z"`
+COUNT=0
+HOSTNAME=`hostname`
+ERROR="true"
+PID=$$
 
 function fatal {
     echo "$NOW: $(basename $0): fatal error: $*" >&2
+    audit
     exit 1
 }
 
@@ -17,7 +22,21 @@ function log {
     echo "$NOW: $(basename $0): info: $*" >&2
 }
 
-COUNT=0
+# Since we use bunyan, this mimics a json structure.
+function audit {
+    echo "{\
+\"audit\":true,\
+\"name\":\"moray_gc_create_links\",\
+\"level\":30,\
+\"error\":$ERROR,\
+\"msg\":\"audit\",\
+\"v\":0,\
+\"time\":\"$NOW\",\
+\"pid\":$PID,\
+\"hostname\":\"$HOSTNAME\",\
+\"count\":\"$COUNT\"\
+}" >&2
+}
 
 log "listing $MDIR"
 MLS_RES=`mls $MDIR 2>&1`
@@ -28,7 +47,9 @@ do
         if [[ "$json" == *ResourceNotFound* ]]
         then
             log "GC not set up yet: $json"
-            exit 0;
+            ERROR="false"
+            audit
+            exit 0
         else
             fatal "$json"
         fi
@@ -53,4 +74,6 @@ do
 done <<< "$MLS_RES"
 
 log "done, processed $COUNT files"
+ERROR="false"
+audit
 exit 0;
