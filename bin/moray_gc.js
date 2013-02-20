@@ -23,13 +23,13 @@ var MANTA_CONFIG = (process.env.MANTA_CONFIG ||
 var MANTA_CLIENT = manta.createClientFromFileSync(MANTA_CONFIG, LOG);
 var MANTA_USER = MANTA_CLIENT.user;
 var MORAY_CLEANUP_PATH = '/' + MANTA_USER + '/stor/manta_gc/moray';
-var MORAY_CLEANER = lib.createMorayCleaner({ log: LOG });
 var PID_FILE = '/var/tmp/moray_gc.pid';
+var CRON_START = new Date();
+var MORAY_CLEANER = lib.createMorayCleaner({ log: LOG });
 MORAY_CLEANER.on('error', function (err) {
-        if (err) {
-                LOG.fatal(err);
-                process.exit(1);
-        }
+        LOG.fatal(err);
+        var returnCode = auditCron(err);
+        process.exit(returnCode);
 });
 
 
@@ -200,7 +200,7 @@ function checkAlreadyRunning(cb) {
                 }
 
                 var pid = fs.readFileSync(PID_FILE, 'utf8');
-                LOG.debug({ file: PID_FILE, foundPid: pid },
+                LOG.info({ file: PID_FILE, foundPid: pid },
                           'Found process in pid file.');
 
                 if (pid === '' || pid.length < 1) {
@@ -209,10 +209,8 @@ function checkAlreadyRunning(cb) {
                 }
 
                 exec('ps ' + pid, function (err2, stdout, stderr) {
-                        if (err2) {
-                                cb(err);
-                                return;
-                        }
+                        //We ignore the error since ps will exit(1) and Node
+                        // sets err2 if the pid doesn't exist.
 
                         LOG.debug({ stdout: stdout }, 'Got output.');
                         var lines = stdout.split('\n');
@@ -237,15 +235,37 @@ function cleanupPidFile(cb) {
 }
 
 
+function auditCron(err) {
+        var end = new Date();
+        var cronRunMillis = end.getTime() - CRON_START.getTime();
+        var mcStats = MORAY_CLEANER.getStats();
+
+        var audit = {
+                'audit': true,
+                'cronFailed': (err !== null && err !== undefined),
+                'startTime': CRON_START,
+                'endTime': end,
+                'rowsDeleted': mcStats.rowsDeleted,
+                'rowsAlreadyDeleted': mcStats.rowsAlreadyDeleted,
+                'cronRunMillis': cronRunMillis
+        };
+
+        LOG.info(audit, 'audit');
+
+        return (audit.cronFailed);
+}
+
+
 ///--- Main
 
 checkAlreadyRunning(function (err) {
         if (err) {
                 LOG.fatal(err);
-                process.exit(1);
         }
+        var returnCode = auditCron(err);
         MANTA_CLIENT.close();
         MORAY_CLEANER.close(function () {
                 LOG.info('Done.');
+                process.exit(returnCode);
         });
 });
