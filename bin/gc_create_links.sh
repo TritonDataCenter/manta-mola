@@ -33,6 +33,7 @@ function audit {
 \"v\":0,\
 \"time\":\"$NOW\",\
 \"pid\":$PID,\
+\"cronExec\":1,\
 \"hostname\":\"$HOSTNAME\",\
 \"count\":\"$COUNT\"\
 }" >&2
