@@ -55,6 +55,7 @@ var MAX_SECONDS_IN_AUDIT_OBJECT = 60 * 60 * 24 * 7; // 7 days
 /* BEGIN JSSTYLED */
 function getEnvCommon(opts) {
         return (' \
+set -o pipefail && \
 export MANTA_USER=' + MANTA_USER + ' && \
 export MANTA_GC=' + opts.gcJobName + ' && \
 export MARLIN_JOB=$(echo $MANTA_OUTPUT_BASE | cut -d "/" -f 4) && \
@@ -100,7 +101,8 @@ export MANTA_PATTERN=$MANTA_FILE_PRE-{1}-{2} && \
 export MANTA_LINKS=$MANTA_PRE/do/$NOW-$MARLIN_JOB-X-$UUID-links && \
 export PERL=/usr/perl5/bin/perl && \
 export LINKS_FILE=./links.txt && \
-sort | ./build/node/bin/node ./bin/gc.js' + gracePeriodOption + ' | \
+sort | \
+  ./build/node/bin/node ./bin/gc.js' + gracePeriodOption + ' | \
   $PERL ./bin/gc_links.pl $MANTA_USER $LINKS_FILE $MANTA_FILE_PRE | \
   ./build/node/bin/node ./bin/mdemux.js -p $MANTA_PATTERN && \
 cat $LINKS_FILE | mpipe $MANTA_LINKS \

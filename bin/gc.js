@@ -59,8 +59,9 @@ _garbageCollector.on('mako', function (mako) {
         console.log('mako\t' + mako.toString());
 });
 
-_garbageCollector.on('error', function (line) {
-        console.error('error\t' + line);
+_garbageCollector.on('error', function (err) {
+        console.error({ err: err }, 'Error with line, exiting.');
+        process.exit(1);
 });
 
 process.stdin.resume();
