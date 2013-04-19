@@ -42,13 +42,9 @@ function dead(objectId, date, morayHostname) {
                         'etag': objectId,
                         'objectId': objectId,
                         'sharks': [ {
-                                'url': 'http://1.stor.coal.joyent.us',
-                                'server_uuid': 'server',
-                                'zone_uuid': '1'
+                                'manta_storage_id': '1'
                         }, {
-                                'url': 'http://2.stor.coal.joyent.us',
-                                'server_uuid': 'server',
-                                'zone_uuid': '2'
+                                'manta_storage_id': '2'
                         }]
                 },
                 '_etag': 'C0A51EFB',
@@ -247,10 +243,7 @@ test('test: dead object, close past grace period', function (t) {
                 assert.equal(morayCalled, 1);
                 for (var i = 1; i <= 2; ++i) {
                         var mako = makos[i - 1];
-                        var makoUrl = 'http://' + i + '.stor.coal.joyent.us';
-                        assert.equal(makoUrl, mako.url);
-                        assert.equal('server', mako.serverUuid);
-                        assert.equal(i, mako.zoneUuid);
+                        assert.equal(i, mako.mantaStorageId);
                         assert.equal(OWNER, mako.owner);
                         assert.equal('1234', mako.objectId);
                 }
@@ -291,10 +284,7 @@ test('test: dead object, custom grace period', function (t) {
                 assert.equal(morayCalled, 1);
                 for (var i = 1; i <= 2; ++i) {
                         var mako = makos[i - 1];
-                        var makoUrl = 'http://' + i + '.stor.coal.joyent.us';
-                        assert.equal(makoUrl, mako.url);
-                        assert.equal('server', mako.serverUuid);
-                        assert.equal(i, mako.zoneUuid);
+                        assert.equal(i, mako.mantaStorageId);
                         assert.equal(OWNER, mako.owner);
                         assert.equal('1234', mako.objectId);
                 }
@@ -334,10 +324,7 @@ test('test: dead object, middle of other not-quite-deads', function (t) {
         gc.on('end', function () {
                 for (var i = 1; i <= 2; ++i) {
                         var mako = makos[i - 1];
-                        var makoUrl = 'http://' + i + '.stor.coal.joyent.us';
-                        assert.equal(makoUrl, mako.url);
-                        assert.equal('server', mako.serverUuid);
-                        assert.equal(i, mako.zoneUuid);
+                        assert.equal(i, mako.mantaStorageId);
                         assert.equal(OWNER, mako.owner);
                         assert.equal('1234', mako.objectId);
                 }
