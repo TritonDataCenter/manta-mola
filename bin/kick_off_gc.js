@@ -79,7 +79,6 @@ zcat | \
   ./build/node/bin/node ./bin/pg_transform.js -d $DUMP_DATE \
     -e ' + opts.earliestDumpDate + ' \
     -m $MORAY_SHARD |' + grepForObject + ' \
-  msplit -n ' + opts.numberReducers + ' \
 ');
 }
 /* END JSSTYLED */
