@@ -20,7 +20,7 @@ var vasync = require('vasync');
 
 var NAME = 'mola';
 var LOG = bunyan.createLogger({
-        level: (process.env.LOG_LEVEL || 'info'),
+        level: (process.env.LOG_LEVEL || 'debug'),
         name: NAME,
         stream: process.stdout
 });
@@ -530,6 +530,9 @@ function findShards(opts, cb) {
 }
 
 
+//This kinda sucks.  Since the new job APIs, the list doesn't return
+// all the relevant information, so we have to fetch them all.  Since gc should
+// run at most once an hour it shouldn't be too bad... but still.
 function findRunningGcJobs(opts, cb) {
         var lopts = { state: RUNNING_STATE };
         MANTA_CLIENT.listJobs(lopts, function (err, res) {
@@ -538,20 +541,38 @@ function findRunningGcJobs(opts, cb) {
                         return;
                 }
 
-                var gcObject = null;
+                var jobs = [];
 
                 res.on('job', function (job) {
-                        if (job.name === opts.gcJobName) {
-                                gcObject = job;
-                        }
+                        jobs.push(job.name);
                 });
 
-                res.on('error', function (err3) {
-                        cb(err3);
+                res.on('error', function (err2) {
+                        cb(err2);
                 });
 
                 res.on('end', function () {
-                        cb(null, gcObject);
+                        if (jobs.length === 0) {
+                                cb(null, null);
+                        }
+                        vasync.forEachParallel({
+                                func: getJob,
+                                inputs: jobs
+                        }, function (err2, results) {
+                                if (err2) {
+                                        cb(err2);
+                                        return;
+                                }
+
+                                var gcJob = null;
+                                for (var i = 0; i < jobs.length; ++i) {
+                                        var j = results.successes[i];
+                                        if (j.name === opts.gcJobName) {
+                                                gcJob = j;
+                                        }
+                                }
+                                cb(null, gcJob);
+                        });
                 });
         });
 }
@@ -564,7 +585,18 @@ function checkForRunningJobs(opts, cb) {
                         return;
                 }
 
-                if (job) {
+                if (job && !job.inputDone) {
+                        //Check if the job's input is still open, if so,
+                        // kill it and continue since it's pointless
+                        // to try and resume if we have newer dumps.
+                        MANTA_CLIENT.cancelJob(job.id, function (err2) {
+                                if (err2) {
+                                        cb(err2);
+                                        return;
+                                }
+                                findShards(opts, cb);
+                        });
+                } else if (job) {
                         var started = (new Date(job.timeCreated)).getTime() /
                                 1000;
                         var now = (new Date()).getTime() / 1000;
@@ -573,10 +605,9 @@ function checkForRunningJobs(opts, cb) {
                         LOG.info(job, 'GC Job already running.');
                         cb();
                         return;
+                } else {
+                        findShards(opts, cb);
                 }
-
-
-                findShards(opts, cb);
         });
 }
 
