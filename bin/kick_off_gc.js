@@ -20,7 +20,7 @@ var vasync = require('vasync');
 
 var NAME = 'mola';
 var LOG = bunyan.createLogger({
-        level: (process.env.LOG_LEVEL || 'debug'),
+        level: (process.env.LOG_LEVEL || 'info'),
         name: NAME,
         stream: process.stdout
 });
@@ -70,7 +70,7 @@ cd /assets/ && gtar -xzf ' + opts.marlinPathToAsset + ' && cd mola && \
 function getPgTransformCmd(opts) {
         var grepForObject = '';
         if (opts.objectId) {
-                grepForObject = ' grep ' + opts.objectId + ' |';
+                grepForObject = ' | grep ' + opts.objectId + ' | ';
         }
         return (getEnvCommon(opts) + ' \
 export MORAY_SHARD=$(echo $mc_input_key | cut -d "/" -f 5) && \
@@ -78,7 +78,7 @@ export DUMP_DATE=$(basename $mc_input_key | sed \'s/^\\w*-//; s/.gz$//;\') && \
 zcat | \
   ./build/node/bin/node ./bin/pg_transform.js -d $DUMP_DATE \
     -e ' + opts.earliestDumpDate + ' \
-    -m $MORAY_SHARD |' + grepForObject + ' \
+    -m $MORAY_SHARD' + grepForObject + ' \
 ');
 }
 /* END JSSTYLED */
