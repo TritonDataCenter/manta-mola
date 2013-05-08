@@ -24,9 +24,10 @@ var LOG = bunyan.createLogger({
         name: NAME,
         stream: process.stdout
 });
-var MANTA_CONFIG = (process.env.MANTA_CONFIG ||
-                    '/opt/smartdc/common/etc/config.json');
-var MANTA_CLIENT = manta.createClientFromFileSync(MANTA_CONFIG, LOG);
+var MOLA_CONFIG = (process.env.MOLA_CONFIG ||
+                   '/opt/smartdc/mola/etc/config.json');
+var MOLA_CONFIG_OBJ = JSON.parse(fs.readFileSync(MOLA_CONFIG));
+var MANTA_CLIENT = manta.createClientFromFileSync(MOLA_CONFIG, LOG);
 var MANTA_USER = MANTA_CLIENT.user;
 var AUDIT = {
         'audit': true,
@@ -41,8 +42,6 @@ var AUDIT = {
 
 var MP = '/' + MANTA_USER + '/stor';
 var BACKUP_DIR = MP + '/manatee_backups';
-var MOLA_CODE_BUNDLE = (process.env.MOLA_CODE_BUNDLE ||
-                        '/opt/smartdc/common/bundle/mola.tar.gz');
 var MANTA_DUMP_NAME_PREFIX = 'manta-';
 var MANTA_DELETE_LOG_DUMP_NAME_PREFIX = 'manta_delete_log-';
 var RUNNING_STATE = 'running';
@@ -112,12 +111,17 @@ cat $LINKS_FILE | mpipe $MANTA_LINKS \
 
 function parseOptions() {
         var option;
-        var opts = {};
-        opts.shards = [];
-        var parser = new getopt.BasicParser('g:m:o:r:t',
+        //First take what's in the config file, override what's on the
+        // command line, and use the defaults if all else fails.
+        var opts = MOLA_CONFIG_OBJ;
+        opts.shards = opts.shards || [];
+        var parser = new getopt.BasicParser('c:g:m:o:r:t',
                                             process.argv);
         while ((option = parser.getopt()) !== undefined && !option.error) {
                 switch (option.option) {
+                case 'c':
+                        opts.codeBundle = option.optarg;
+                        break;
                 case 'g':
                         opts.gracePeriodSeconds = parseInt(option.optarg, 10);
                         break;
@@ -141,6 +145,8 @@ function parseOptions() {
         }
 
         //Set up some defaults...
+        opts.codeBundle = opts.codeBundle ||
+                '/opt/smartdc/common/bundle/mola.tar.gz';
         opts.gcJobName = opts.gcJobName || 'manta_gc';
         opts.mantaGcDir = opts.mantaGcDir || MP + '/manta_gc';
         opts.mantaAssetDir = opts.mantaGcDir + '/assets';
@@ -383,14 +389,14 @@ function setupGcMarlinJob(opts, cb) {
                 }
 
                 //Upload the bundle to manta
-                fs.stat(MOLA_CODE_BUNDLE, function (err2, stats) {
+                fs.stat(opts.code_bundle, function (err2, stats) {
                         if (err2) {
                                 cb(err2);
                                 return;
                         }
 
                         if (!stats.isFile()) {
-                                cb(new Error(MOLA_CODE_BUNDLE +
+                                cb(new Error(opts.code_bundle +
                                              ' isn\'t a file'));
                                 return;
                         }
@@ -400,7 +406,7 @@ function setupGcMarlinJob(opts, cb) {
                                 size: stats.size
                         };
 
-                        var s = fs.createReadStream(MOLA_CODE_BUNDLE);
+                        var s = fs.createReadStream(opts.code_bundle);
                         var p = opts.molaAssetObject;
                         s.pause();
                         s.on('open', function () {
@@ -426,9 +432,15 @@ function extractDate(prefix, filename) {
 }
 
 
-function runGcWithShards(opts, cb) {
-        LOG.info({ opts: opts }, 'Running GC with shards.');
+function runGc(opts, cb) {
+        LOG.info({ opts: opts }, 'Running GC.');
         var shards = opts.shards;
+
+        if (shards.length === 0) {
+                cb(new Error('No shards specified.'));
+                return;
+        }
+
         vasync.forEachParallel({
                 func: findLatestBackupObjects,
                 inputs: shards
@@ -487,47 +499,6 @@ function runGcWithShards(opts, cb) {
         });
 }
 
-
-function getShardsFromMdata(cb) {
-        var cmd = 'mdata-get moray_indexer_names';
-        LOG.info({ cmd: cmd }, 'fetching data from mdata');
-        exec(cmd, function (err, stdout, stderr) {
-                if (err) {
-                        cb(err);
-                        return;
-                }
-                var shards = stdout.split(/\s+/);
-                while (shards[shards.length - 1] === '') {
-                        shards.pop();
-                }
-                cb(null, shards);
-        });
-}
-
-
-function findShards(opts, cb) {
-        //This means the one running the command is responsible for
-        // giving the correct set of shards...
-        if (opts.shards && opts.shards.length > 0) {
-                runGcWithShards(opts, cb);
-        } else {
-                getShardsFromMdata(function (err2, mdataShards) {
-                        if (err2) {
-                                cb(err2);
-                                return;
-                        }
-
-                        if (mdataShards.length === 0) {
-                                LOG.info('no moray shards found in mdata.');
-                                cb();
-                                return;
-                        }
-                        AUDIT.numberOfShards = mdataShards.length;
-                        opts.shards = mdataShards;
-                        runGcWithShards(opts, cb);
-                });
-        }
-}
 
 
 //This kinda sucks.  Since the new job APIs, the list doesn't return
@@ -594,7 +565,7 @@ function checkForRunningJobs(opts, cb) {
                                         cb(err2);
                                         return;
                                 }
-                                findShards(opts, cb);
+                                runGc(opts, cb);
                         });
                 } else if (job) {
                         var started = (new Date(job.timeCreated)).getTime() /
@@ -606,7 +577,7 @@ function checkForRunningJobs(opts, cb) {
                         cb();
                         return;
                 } else {
-                        findShards(opts, cb);
+                        runGc(opts, cb);
                 }
         });
 }
