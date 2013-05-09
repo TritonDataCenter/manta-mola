@@ -84,8 +84,8 @@ function usage(msg) {
 var _opts = parseOptions();
 _opts.reader = process.stdin;
 
-var _pgRowTransformer = lib.createPgRowTransformer(_opts);
-_pgRowTransformer.on('row', function (row) {
+var _gcPgRowTransformer = lib.createGcPgRowTransformer(_opts);
+_gcPgRowTransformer.on('row', function (row) {
         console.log(row.toString());
 });
 

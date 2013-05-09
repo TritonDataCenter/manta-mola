@@ -47,7 +47,7 @@ test('test: tranform live', function (t) {
                 earliestDumpDate: dumpDate,
                 morayHostname: morayHostname
         };
-        var pt = lib.createPgRowTransformer(opts);
+        var pt = lib.createGcPgRowTransformer(opts);
 
         var count = 0;
         pt.on('row', function (row) {
@@ -81,7 +81,7 @@ test('test: transform dead', function (t) {
                 earliestDumpDate: dumpDate,
                 morayHostname: morayHostname
         };
-        var pt = lib.createPgRowTransformer(opts);
+        var pt = lib.createGcPgRowTransformer(opts);
 
         var count = 0;
         pt.on('row', function (row) {
@@ -116,7 +116,7 @@ test('test: transform dead, discard newest entries', function (t) {
                 earliestDumpDate: earliestDumpDate,
                 morayHostname: morayHostname
         };
-        var pt = lib.createPgRowTransformer(opts);
+        var pt = lib.createGcPgRowTransformer(opts);
 
         var count = 0;
         pt.on('row', function (row) {
