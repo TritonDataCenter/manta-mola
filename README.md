@@ -61,7 +61,7 @@ You can also run a full GC cycle locally by first downloading some pg dumps into
     for f in `ls tmp`; do \
        export DD=$(echo $f | sed 's/^\w*-//; s/.gz$//;'); \
        zcat tmp/$f | \
-       node ./bin/pg_transform.js -d $DD -e $EARLIEST \
+       node ./bin/gc_pg_transform.js -d $DD -e $EARLIEST \
          -m 1.moray.coal.joyent.us; \
     done | sort | node ./bin/gc.js -g 60
 
