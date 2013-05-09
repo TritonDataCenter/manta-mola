@@ -222,7 +222,7 @@ function processLinkFile(objPath, cb) {
 
 function findJob(jobId, cb) {
         MANTA_CLIENT.job(jobId, function (err, job) {
-                if (err.statusCode !== 404) {
+                if (err && err.statusCode !== 404) {
                         cb(err);
                         return;
                 }

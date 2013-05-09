@@ -389,14 +389,14 @@ function setupGcMarlinJob(opts, cb) {
                 }
 
                 //Upload the bundle to manta
-                fs.stat(opts.code_bundle, function (err2, stats) {
+                fs.stat(opts.codeBundle, function (err2, stats) {
                         if (err2) {
                                 cb(err2);
                                 return;
                         }
 
                         if (!stats.isFile()) {
-                                cb(new Error(opts.code_bundle +
+                                cb(new Error(opts.codeBundle +
                                              ' isn\'t a file'));
                                 return;
                         }
@@ -406,7 +406,7 @@ function setupGcMarlinJob(opts, cb) {
                                 size: stats.size
                         };
 
-                        var s = fs.createReadStream(opts.code_bundle);
+                        var s = fs.createReadStream(opts.codeBundle);
                         var p = opts.molaAssetObject;
                         s.pause();
                         s.on('open', function () {
