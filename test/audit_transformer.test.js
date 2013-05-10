@@ -13,11 +13,6 @@ var test = helper.test;
 
 
 
-///--- Helpers
-
-
-
-
 ///--- Tests
 
 test('test: tranform mako', function (t) {
