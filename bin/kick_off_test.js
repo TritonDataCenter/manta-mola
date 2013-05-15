@@ -131,10 +131,7 @@ function parseOptions() {
 
         opts.testDir = opts.jobRoot + '/test';
 
-        opts.directories = [
-                opts.assetDir,
-                opts.testDir
-        ];
+        opts.directories = [ opts.testDir ];
 
         return (opts);
 }
@@ -145,7 +142,7 @@ function usage(msg) {
                 console.error(msg);
         }
         var str  = 'usage: ' + path.basename(process.argv[1]);
-        str += ' [-a assetObject]';
+        str += ' [-a asset_file]';
         str += ' [-r marlin_reducer_memory]';
         str += ' [-t output_to_test]';
         console.error(str);

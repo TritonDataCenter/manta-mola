@@ -196,15 +196,12 @@ function getAuditJob(opts, cb) {
          * }
          */
         var job = {
-                name: opts.auditJobName,
                 phases: [ {
                         type: 'storage-map',
-                        assets: [ opts.marlinAssetObject ],
                         exec: pgCmd
                 }, {
                         type: 'reduce',
                         count: opts.numberReducers,
-                        assets: [ opts.marlinAssetObject ],
                         memory: opts.marlinReducerMemory,
                         exec: auditCmd
                 }]

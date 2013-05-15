@@ -6,12 +6,10 @@ var assert = require('assert-plus');
 var bunyan = require('bunyan');
 var fs = require('fs');
 var getopt = require('posix-getopt');
-var exec = require('child_process').exec;
 var lib = require('../lib');
 var manta = require('manta');
 var MemoryStream = require('memorystream');
 var path = require('path');
-var sys = require('sys');
 var vasync = require('vasync');
 
 
@@ -115,12 +113,12 @@ function parseOptions() {
         // command line, and use the defaults if all else fails.
         var opts = MOLA_CONFIG_OBJ;
         opts.shards = opts.shards || [];
-        var parser = new getopt.BasicParser('c:g:m:o:r:t',
+        var parser = new getopt.BasicParser('a:g:m:o:r:t',
                                             process.argv);
         while ((option = parser.getopt()) !== undefined && !option.error) {
                 switch (option.option) {
-                case 'c':
-                        opts.codeBundle = option.optarg;
+                case 'a':
+                        opts.assetFile = option.optarg;
                         break;
                 case 'g':
                         opts.gracePeriodSeconds = parseInt(option.optarg, 10);
@@ -135,8 +133,8 @@ function parseOptions() {
                         opts.marlinReducerMemory = parseInt(option.optarg, 10);
                         break;
                 case 't':
-                        opts.gcJobName = 'manta_gc_test';
-                        opts.mantaGcDir = MP + '/manta_gc_test';
+                        opts.jobName = 'manta_gc_test';
+                        opts.jobRoot = MP + '/manta_gc_test';
                         break;
                 default:
                         usage('Unknown option: ' + option.option);
@@ -145,23 +143,25 @@ function parseOptions() {
         }
 
         //Set up some defaults...
-        opts.codeBundle = opts.codeBundle ||
+        opts.jobName = opts.jobName || 'manta_gc';
+        opts.jobRoot = opts.jobRoot || MP + '/manta_gc';
+
+        opts.assetDir = opts.jobRoot + '/assets';
+        opts.assetObject = opts.assetDir + '/mola.tar.gz';
+        opts.assetFile = opts.assetFile ||
                 '/opt/smartdc/common/bundle/mola.tar.gz';
-        opts.gcJobName = opts.gcJobName || 'manta_gc';
-        opts.mantaGcDir = opts.mantaGcDir || MP + '/manta_gc';
-        opts.mantaAssetDir = opts.mantaGcDir + '/assets';
-        opts.molaAssetObject = opts.mantaAssetDir + '/mola.tar.gz';
-        opts.molaPreviousJobsObject = opts.mantaGcDir + '/jobs.json';
 
         opts.marlinReducerMemory = opts.marlinReducerMemory || 4096;
-        opts.marlinPathToAsset = opts.molaAssetObject.substring(1);
-        opts.marlinAssetObject = opts.molaAssetObject;
+        opts.marlinPathToAsset = opts.assetObject.substring(1);
+        opts.marlinAssetObject = opts.assetObject;
 
-        opts.mantaGcAllDir = opts.mantaGcDir + '/all';
-        opts.mantaGcAdoDir = opts.mantaGcDir + '/all/do';
-        opts.mantaGcAdoneDir = opts.mantaGcDir + '/all/done';
-        opts.mantaGcMakoDir = opts.mantaGcDir + '/mako';
-        opts.mantaGcMorayDir = opts.mantaGcDir + '/moray';
+        opts.directories = [
+                opts.jobRoot + '/all',
+                opts.jobRoot + '/all/do',
+                opts.jobRoot + '/all/done',
+                opts.jobRoot + '/mako',
+                opts.jobRoot + '/moray'
+        ];
 
         return (opts);
 }
@@ -172,6 +172,7 @@ function usage(msg) {
                 console.error(msg);
         }
         var str  = 'usage: ' + path.basename(process.argv[1]);
+        str += ' [-a asset_file]';
         str += ' [-g grace_period_seconds]';
         str += ' [-m moray_shard]';
         str += ' [-o object_id]';
@@ -189,60 +190,6 @@ function startsWith(str, prefix) {
 
 function endsWith(str, suffix) {
         return (str.indexOf(suffix, str.length - suffix.length) !== -1);
-}
-
-
-function getObject(objectPath, cb) {
-        var res = '';
-        MANTA_CLIENT.get(objectPath, {}, function (err, stream) {
-                if (err) {
-                        cb(err);
-                        return;
-                }
-
-                stream.on('error', function (err1) {
-                        cb(err1);
-                        return;
-                });
-
-                stream.on('data', function (data) {
-                        res += data;
-                });
-
-                stream.on('end', function () {
-                        cb(null, res);
-                });
-        });
-}
-
-
-function getJob(jobId, cb) {
-        MANTA_CLIENT.job(jobId, function (err, job) {
-                cb(err, job);
-        });
-}
-
-
-function getObjectsInDir(dir, cb) {
-        var objects = [];
-        MANTA_CLIENT.ls(dir, {}, function (err, res) {
-                if (err) {
-                        cb(err);
-                        return;
-                }
-
-                res.on('object', function (obj) {
-                        objects.push(dir + '/' + obj.name);
-                });
-
-                res.once('error', function (err2) {
-                        cb(err2);
-                });
-
-                res.once('end', function () {
-                        cb(null, objects);
-                });
-        });
 }
 
 
@@ -295,7 +242,7 @@ function findLatestBackupObjects(opts, cb) {
 }
 
 
-function createGcMarlinJob(opts, cb) {
+function getGcJob(opts, cb) {
         //We use the number of shards + 1 so that we know
         // we are always using multiple reducers.  There's
         // no reason this can't be much more.
@@ -307,15 +254,12 @@ function createGcMarlinJob(opts, cb) {
         var pgCmd = getPgTransformCmd(opts);
         var gcCmd = getGcCmd(opts);
         var job = {
-                name: opts.gcJobName,
                 phases: [ {
                         type: 'storage-map',
-                        assets: [ opts.marlinAssetObject ],
                         exec: pgCmd
                 }, {
                         type: 'reduce',
                         count: opts.numberReducers,
-                        assets: [ opts.marlinAssetObject ],
                         memory: opts.marlinReducerMemory,
                         exec: gcCmd
                 } ]
@@ -323,103 +267,7 @@ function createGcMarlinJob(opts, cb) {
 
         LOG.info({ job: job }, 'GC Marlin Job Definition');
 
-        MANTA_CLIENT.createJob(job, function (err, jobId) {
-                if (err) {
-                        cb(err);
-                        return;
-                }
-
-                opts.jobId = jobId;
-                //Create the previous job record
-                opts.previousJobs[jobId] = {
-                        'timeCreated': new Date(),
-                        'audited': false
-                };
-
-                LOG.info({ jobId: jobId }, 'Created Job.');
-                var aopts = {
-                        end: true
-                };
-                var objects = opts.objects;
-
-                //Add objects to job...
-                MANTA_CLIENT.addJobKey(jobId, objects, aopts, function (err2) {
-                        if (err2) {
-                                cb(err2);
-                                return;
-                        }
-
-                        LOG.info({
-                                objects: objects,
-                                jobId: jobId
-                        }, 'Added objects to job');
-
-                        AUDIT.numberOfObjects = objects.length;
-                        AUDIT.startedJob = 1;
-                        LOG.info('Done for now.');
-                        cb();
-                });
-        });
-}
-
-
-function setupGcDirectories(opts, cb) {
-        var m = MANTA_CLIENT;
-        vasync.pipeline({
-                funcs: [
-                        function (_, c) { m.mkdir(opts.mantaGcDir, c); },
-                        function (_, c) { m.mkdir(opts.mantaAssetDir, c); },
-                        function (_, c) { m.mkdir(opts.mantaGcAllDir, c); },
-                        function (_, c) { m.mkdir(opts.mantaGcAdoDir, c); },
-                        function (_, c) { m.mkdir(opts.mantaGcAdoneDir, c); },
-                        function (_, c) { m.mkdir(opts.mantaGcMakoDir, c); },
-                        function (_, c) { m.mkdir(opts.mantaGcMorayDir, c); }
-                ]
-        }, function (err) {
-                cb(err);
-        });
-}
-
-
-function setupGcMarlinJob(opts, cb) {
-        setupGcDirectories(opts, function (err) {
-                if (err) {
-                        cb(err);
-                        return;
-                }
-
-                //Upload the bundle to manta
-                fs.stat(opts.codeBundle, function (err2, stats) {
-                        if (err2) {
-                                cb(err2);
-                                return;
-                        }
-
-                        if (!stats.isFile()) {
-                                cb(new Error(opts.codeBundle +
-                                             ' isn\'t a file'));
-                                return;
-                        }
-
-                        var o = {
-                                copies: 2,
-                                size: stats.size
-                        };
-
-                        var s = fs.createReadStream(opts.codeBundle);
-                        var p = opts.molaAssetObject;
-                        s.pause();
-                        s.on('open', function () {
-                                MANTA_CLIENT.put(p, s, o, function (e) {
-                                        if (e) {
-                                                cb(e);
-                                                return;
-                                        }
-                                        createGcMarlinJob(opts, cb);
-                                });
-                        });
-                });
-        });
+        cb(null, job);
 }
 
 
@@ -432,8 +280,8 @@ function extractDate(prefix, filename) {
 }
 
 
-function runGc(opts, cb) {
-        LOG.info({ opts: opts }, 'Running GC.');
+function findGcObjects(opts, cb) {
+        LOG.info({ opts: opts }, 'Finding Gc Objects.');
         var shards = opts.shards;
 
         if (shards.length === 0) {
@@ -494,219 +342,9 @@ function runGc(opts, cb) {
                 dates.sort();
                 LOG.info({ dates: dates }, 'found dates');
                 opts.earliestDumpDate = dates[0];
-                opts.objects = objects;
-                setupGcMarlinJob(opts, cb);
+
+                cb(null, objects);
         });
-}
-
-
-
-//This kinda sucks.  Since the new job APIs, the list doesn't return
-// all the relevant information, so we have to fetch them all.  Since gc should
-// run at most once an hour it shouldn't be too bad... but still.
-function findRunningGcJobs(opts, cb) {
-        var lopts = { state: RUNNING_STATE };
-        MANTA_CLIENT.listJobs(lopts, function (err, res) {
-                if (err) {
-                        cb(err);
-                        return;
-                }
-
-                var jobs = [];
-
-                res.on('job', function (job) {
-                        jobs.push(job.name);
-                });
-
-                res.on('error', function (err2) {
-                        cb(err2);
-                });
-
-                res.on('end', function () {
-                        if (jobs.length === 0) {
-                                cb(null, null);
-                                return;
-                        }
-                        vasync.forEachParallel({
-                                func: getJob,
-                                inputs: jobs
-                        }, function (err2, results) {
-                                if (err2) {
-                                        cb(err2);
-                                        return;
-                                }
-
-                                var gcJob = null;
-                                for (var i = 0; i < jobs.length; ++i) {
-                                        var j = results.successes[i];
-                                        if (j.name === opts.gcJobName) {
-                                                gcJob = j;
-                                        }
-                                }
-                                cb(null, gcJob);
-                        });
-                });
-        });
-}
-
-
-function checkForRunningJobs(opts, cb) {
-        findRunningGcJobs(opts, function (err, job) {
-                if (err) {
-                        cb(err);
-                        return;
-                }
-
-                if (job && !job.inputDone) {
-                        //Check if the job's input is still open, if so,
-                        // kill it and continue since it's pointless
-                        // to try and resume if we have newer dumps.
-                        MANTA_CLIENT.cancelJob(job.id, function (err2) {
-                                if (err2) {
-                                        cb(err2);
-                                        return;
-                                }
-                                runGc(opts, cb);
-                        });
-                } else if (job) {
-                        var started = (new Date(job.timeCreated)).getTime() /
-                                1000;
-                        var now = (new Date()).getTime() / 1000;
-                        AUDIT.currentJobSecondsRunning =
-                                Math.round(now - started);
-                        LOG.info(job, 'GC Job already running.');
-                        cb();
-                        return;
-                } else {
-                        runGc(opts, cb);
-                }
-        });
-}
-
-
-
-///--- Auditing previous jobs
-
-function auditJob(job) {
-        if (job.state === 'running') {
-                return (false);
-        }
-
-        var audit = {
-                audit: true,
-                id: job.id
-        };
-
-        if (job.stats && job.stats.errors) {
-                audit.jobErrors = job.stats.errors;
-        } else {
-                audit.jobErrors = 0;
-        }
-
-        audit.timeCreated = job.timeCreated;
-        audit.jobDurationMillis =
-                Math.round((new Date(job.timeDone)).getTime()) -
-                Math.round((new Date(job.timeCreated)).getTime());
-
-        LOG.info(audit, 'audit');
-
-        return (true);
-}
-
-
-function auditPreviousJobs(opts, cb) {
-        LOG.info('Auditing previous jobs.');
-        var objPath = opts.molaPreviousJobsObject;
-        opts.previousJobs = {};
-        getObject(objPath, function (err, data) {
-                if (err && err.code === 'ResourceNotFound') {
-                        LOG.info(objPath + ' doesn\'t exist yet.');
-                        cb();
-                        return;
-                }
-                if (err) {
-                        cb(err);
-                        return;
-                }
-
-                try {
-                        var pJobs = JSON.parse(data);
-                        opts.previousJobs = pJobs;
-                } catch (err2) {
-                        cb(err2);
-                        return;
-                }
-
-                var jobsToAudit = [];
-                var jobsToDelete = [];
-                for (var jobId in pJobs) {
-                        var job = pJobs[jobId];
-                        var now = (new Date()).getTime();
-                        var created = (new Date(job.timeCreated)).getTime();
-                        var secondsSinceDone = Math.round(
-                                (now - created) / 1000);
-                        if (!job.audited) {
-                                jobsToAudit.push(jobId);
-                        }
-                        if (secondsSinceDone >
-                            MAX_SECONDS_IN_AUDIT_OBJECT) {
-                                jobsToDelete.push(jobId);
-                        }
-                }
-
-                if (jobsToAudit.length === 0) {
-                        LOG.info('No jobs to audit.');
-                        cb();
-                        return;
-                }
-
-                vasync.forEachParallel({
-                        func: getJob,
-                        inputs: jobsToAudit
-                }, function (err2, results) {
-                        if (err2) {
-                                cb(err2);
-                                return;
-                        }
-
-                        var i;
-                        for (i = 0; i < jobsToAudit.length; ++i) {
-                                var cJob = results.successes[i];
-                                var cJobId = jobsToAudit[i];
-                                if (auditJob(cJob)) {
-                                        pJobs[cJobId].audited = true;
-                                }
-                        }
-
-                        for (i = 0; i < jobsToDelete.length; ++i) {
-                                var dJobId = jobsToDelete[i];
-                                if (pJobs[dJobId].audited) {
-                                        delete pJobs[dJobId];
-                                }
-                        }
-
-                        opts.previousJobs = pJobs;
-                        cb();
-                });
-        });
-}
-
-
-function recordJobs(opts, cb) {
-        var recordString = JSON.stringify(opts.previousJobs);
-        var o = { size: Buffer.byteLength(recordString) };
-        var s = new MemoryStream();
-
-        var objPath = opts.molaPreviousJobsObject;
-        MANTA_CLIENT.put(objPath, s, o, function (err2) {
-                cb(err2);
-        });
-
-        process.nextTick(function () {
-                s.write(recordString);
-                s.end();
-        });
-
 }
 
 
@@ -715,31 +353,10 @@ function recordJobs(opts, cb) {
 
 var _opts = parseOptions();
 
-auditPreviousJobs(_opts, function (err) {
-        if (err) {
-                //We don't care that it failed, so we just log and continue.
-                LOG.error(err);
-        }
+_opts.getJobDefinition = getGcJob;
+_opts.getJobObjects = findGcObjects;
 
-        checkForRunningJobs(_opts, function (err2) {
-                if (err2) {
-                        LOG.fatal(err2, 'Error.');
-                } else {
-                        AUDIT.cronFailed = 0;
-                }
-
-                recordJobs(_opts, function (err3) {
-                        if (err3) {
-                                LOG.error(err3, 'Error saving audit records.');
-                        }
-
-                        //Write out audit record.
-                        AUDIT.endTime = new Date();
-                        AUDIT.cronRunMillis = (AUDIT.endTime.getTime() -
-                                               AUDIT.startTime.getTime());
-                        AUDIT.opts = _opts;
-                        LOG.info(AUDIT, 'audit');
-                        process.exit(AUDIT.cronFailed);
-                });
-        });
+var jobManager = lib.createJobManager(_opts, MANTA_CLIENT, LOG);
+jobManager.run(function () {
+        LOG.info('Done for now.');
 });
