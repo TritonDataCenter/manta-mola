@@ -6,12 +6,10 @@ var assert = require('assert-plus');
 var bunyan = require('bunyan');
 var fs = require('fs');
 var getopt = require('posix-getopt');
-var exec = require('child_process').exec;
 var lib = require('../lib');
 var manta = require('manta');
 var MemoryStream = require('memorystream');
 var path = require('path');
-var sys = require('sys');
 var vasync = require('vasync');
 
 

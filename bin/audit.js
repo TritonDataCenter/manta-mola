@@ -44,10 +44,12 @@ function usage(msg) {
 var _opts = parseOptions();
 _opts.reader = process.stdin;
 
-var _auditor = lib.createAuditor(process.stdin);
+var _auditor = lib.createAuditor({
+        reader: process.stdin
+});
 
 _auditor.on('problem', function (problem) {
-        process.stdout.write(problem);
+        process.stdout.write(problem + '\n');
 });
 
 _auditor.on('error', function (err) {
