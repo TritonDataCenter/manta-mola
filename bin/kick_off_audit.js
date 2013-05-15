@@ -262,7 +262,7 @@ function findMorayBackupObject(opts, cb) {
                         }
                 }
 
-                if (obj === null) {
+                if (obj === null || obj.mtime > earliestMakoDump) {
                         findMorayBackupObject({
                                 'shard': shard,
                                 'earliestMakoDump': earliestMakoDump,

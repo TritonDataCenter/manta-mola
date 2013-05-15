@@ -69,9 +69,9 @@ The `-g 60` is the grace period.  In order to be cleaned out of mako, the only
 reference to an object will be in the manta_delete_log table and the creation
 date for that record will be more than `-g [seconds]` old.
 
-You can test a full audit cycle by first causing mako dumps for each storage
-node, then postgres dumps for each indexing moray shard.  This example uses
-the input from a previously run audit job:
+You can test a full audit cycle by first causing postgres dumps for each moray
+shard, then mako dumps for each storage node.  This example uses the input from
+a previously run audit job:
 
     for MANTA_INPUT_OBJECT in `mjob inputs b1448c8d-53f0-4f63-91b8-c351a716c3a3`
     do
