@@ -219,8 +219,8 @@ function findMorayBackupObject(opts, cb) {
         var offset = (opts.offset === undefined) ? 0 : opts.offset;
 
         if (offset === 7) {
-                cb(new Error('Couldn\'t find moray backup for shard ' +
-                             shard));
+                LOG.info('Couldn\'t find moray backup for shard ' + shard);
+                cb(null);
                 return;
         }
 
@@ -285,7 +285,8 @@ function findMorayObjects(opts, cb) {
         var earliestMakoDump = opts.earliestMakoDump;
 
         if (shards.length === 0 || !earliestMakoDump) {
-                cb(new Error('Shards or earliest mako dump date missing.'));
+                LOG.info('No shard backups.  Must not be setup yet.');
+                cb(null);
                 return;
         }
 
@@ -311,6 +312,14 @@ function findMorayObjects(opts, cb) {
                 var objects = [];
                 for (var i = 0; i < shards.length; ++i) {
                         var obj = results.successes[i];
+                        //Ok, this is a little strange.  If we don't find one
+                        // of them, then we don't want the job to continue
+                        // but we don't want to log FATAL either.  So we
+                        // return nothing, and that should give us ^^.
+                        if (obj === null || obj === undefined) {
+                                cb(null, []);
+                                return;
+                        }
                         objects.push(obj.fullPath);
                 }
 
@@ -321,6 +330,11 @@ function findMorayObjects(opts, cb) {
 
 function findLatestMakoObjects(opts, cb) {
         getObjectsInDir(MAKO_BACKUP_DIR, function (err, objects) {
+                if (err && err.name === 'ResourceNotFoundError') {
+                        LOG.info('No Mako Objects found');
+                        cb(null, []);
+                        return;
+                }
                 if (err) {
                         cb(err);
                         return;
@@ -366,7 +380,14 @@ function findObjects(opts, cb) {
 
                 var objects = [];
                 for (var i = 0; i < results.successes.length; ++i) {
-                        objects = objects.concat(results.successes[i]);
+                        //If no objects were found for one of the results,
+                        // return empty.
+                        if (results.successes[i].length === 0) {
+                                cb(null, []);
+                                return;
+                        } else {
+                                objects = objects.concat(results.successes[i]);
+                        }
                 }
                 cb(null, objects);
         });
