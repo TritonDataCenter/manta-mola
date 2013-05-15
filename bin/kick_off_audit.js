@@ -373,12 +373,84 @@ function findObjects(opts, cb) {
 }
 
 
+function getObject(objectPath, cb) {
+        var res = '';
+        MANTA_CLIENT.get(objectPath, {}, function (err, stream) {
+                if (err) {
+                        cb(err);
+                        return;
+                }
+
+                stream.on('error', function (err1) {
+                        cb(err1);
+                        return;
+                });
+
+                stream.on('data', function (data) {
+                        res += data;
+                });
+
+                stream.on('end', function () {
+                        cb(null, res);
+                });
+        });
+}
+
+
+function checkJobResults(job, audit, opts, cb) {
+        // If the job wasn't successful, we don't want any alarms.  Audit will
+        // take care of everything we need.
+        if (job.stats.errors > 0) {
+                cb(null);
+                return;
+        }
+
+        //Find the output
+        var p = '/' + MANTA_CLIENT.user + '/jobs/' + job.id + '/out.txt';
+        getObject(p, function (err, res) {
+                if (err) {
+                        //Don't know if it failed or not, so don't audit.
+                        cb(err);
+                        return;
+                }
+
+                LOG.info({ jobId: job.id, outputs: res },
+                         'Looking at job output.');
+                var parts = res.split('\n');
+                if (parts.length < 2 && parts[1] !== '') {
+                        LOG.fatal({ jobId: job.id },
+                                  'Somehow job has more than one output!');
+                        cb(new Error('Job has more than one output!'));
+                        return;
+                }
+
+                getObject(parts[0], function (err2, errorLines) {
+                        if (err2) {
+                                //Don't know if it failed or not.
+                                cb(err2);
+                                return;
+                        }
+                        if (errorLines !== '') {
+                                //Bad juju.
+                                LOG.fatal({
+                                        job: job,
+                                        outputObject: parts[0]
+                                }, 'Audit job detected abnormalities between ' +
+                                          'mako and moray.');
+                        }
+                        cb(null);
+                });
+        });
+}
+
+
 ///--- Main
 
 var _opts = parseOptions();
 
 _opts.getJobDefinition = getAuditJob;
 _opts.getJobObjects = findObjects;
+_opts.preAudit = checkJobResults;
 
 var jobManager = lib.createJobManager(_opts, MANTA_CLIENT, LOG);
 jobManager.run(function () {
