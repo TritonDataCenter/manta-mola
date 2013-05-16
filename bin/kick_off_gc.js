@@ -8,7 +8,6 @@ var fs = require('fs');
 var getopt = require('posix-getopt');
 var lib = require('../lib');
 var manta = require('manta');
-var MemoryStream = require('memorystream');
 var path = require('path');
 var vasync = require('vasync');
 
@@ -113,7 +112,7 @@ function parseOptions() {
         // command line, and use the defaults if all else fails.
         var opts = MOLA_CONFIG_OBJ;
         opts.shards = opts.shards || [];
-        var parser = new getopt.BasicParser('a:g:m:o:r:t',
+        var parser = new getopt.BasicParser('a:g:m:no:r:t',
                                             process.argv);
         while ((option = parser.getopt()) !== undefined && !option.error) {
                 switch (option.option) {
@@ -125,6 +124,9 @@ function parseOptions() {
                         break;
                 case 'm':
                         opts.shards.push(option.optarg);
+                        break;
+                case 'n':
+                        opts.noJobStart = true;
                         break;
                 case 'o':
                         opts.objectId = option.optarg;
@@ -175,6 +177,7 @@ function usage(msg) {
         str += ' [-a asset_file]';
         str += ' [-g grace_period_seconds]';
         str += ' [-m moray_shard]';
+        str += ' [-n no_job_start]';
         str += ' [-o object_id]';
         str += ' [-r marlin_reducer_memory]';
         str += ' [-t output_to_test]';

@@ -8,7 +8,6 @@ var fs = require('fs');
 var getopt = require('posix-getopt');
 var lib = require('../lib');
 var manta = require('manta');
-var MemoryStream = require('memorystream');
 var path = require('path');
 var sprintf = require('sprintf-js').sprintf;
 var vasync = require('vasync');
@@ -84,7 +83,7 @@ function parseOptions() {
         // command line, and use the defaults if all else fails.
         var opts = MOLA_AUDIT_CONFIG_OBJ;
         opts.shards = opts.shards || [];
-        var parser = new getopt.BasicParser('a:m:r:s:t',
+        var parser = new getopt.BasicParser('a:m:nr:s:t',
                                             process.argv);
         while ((option = parser.getopt()) !== undefined && !option.error) {
                 switch (option.option) {
@@ -93,6 +92,9 @@ function parseOptions() {
                         break;
                 case 'm':
                         opts.shards.push(option.optarg);
+                        break;
+                case 'n':
+                        opts.noJobStart = true;
                         break;
                 case 'r':
                         opts.marlinReducerMemory = parseInt(option.optarg, 10);
@@ -133,6 +135,7 @@ function usage(msg) {
         var str  = 'usage: ' + path.basename(process.argv[1]);
         str += ' [-a asset_object]';
         str += ' [-m moray_shard]';
+        str += ' [-n no_job_start]';
         str += ' [-r marlin_reducer_memory]';
         str += ' [-s manta_storage_id]';
         str += ' [-t output_to_test]';
