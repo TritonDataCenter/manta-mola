@@ -272,8 +272,8 @@ function findAndVerifyJob(objPath, cb) {
 
                 if (job.stats && (job.stats.errors > 0 ||
                                   job.cancelled === true)) {
-                        LOG.info({ jobId: jobId, objectPath: objPath },
-                                 'Job has errors, not processing links.');
+                        LOG.error({ jobId: jobId, objectPath: objPath },
+                                  'Job had errors, not processing links.');
                         //My first thought was to clean up all the data
                         // associated with the job, but we need to do that for
                         // all other jobs anyways.  So rather we just delete
