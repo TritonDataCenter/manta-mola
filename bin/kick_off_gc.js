@@ -53,7 +53,7 @@ function getEnvCommon(opts) {
         return (' \
 set -o pipefail && \
 export MANTA_USER=' + MANTA_USER + ' && \
-export MANTA_GC=' + opts.gcJobName + ' && \
+export MANTA_GC=' + opts.jobName + ' && \
 export MARLIN_JOB=$(echo $MANTA_OUTPUT_BASE | cut -d "/" -f 4) && \
 export NOW=$(date "+%Y-%m-%d-%H-%M-%S") && \
 cd /assets/ && gtar -xzf ' + opts.marlinPathToAsset + ' && cd mola && \
