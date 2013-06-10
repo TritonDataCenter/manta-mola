@@ -23,7 +23,7 @@ NPM             := npm
 #
 # Files
 #
-DOC_FILES        = index.restdown design.restdown
+DOC_FILES        = $(shell find docs -name '*.restdown' | cut -d '/' -f 2)
 JS_FILES        := $(shell ls *.js) $(shell find lib test bin -name '*.js')
 JSL_CONF_NODE    = tools/jsl.node.conf
 JSL_FILES_NODE   = $(JS_FILES)
