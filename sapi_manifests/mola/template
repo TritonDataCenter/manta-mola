@@ -1,0 +1,22 @@
+{
+    "assetFile": "/opt/smartdc/common/bundle/mola.tar.gz",
+    "shards": [
+         {{#INDEX_MORAY_SHARDS}}
+            "{{host}}"{{^last}}, {{/last}}
+         {{/INDEX_MORAY_SHARDS}}
+    ],
+    "manta": {
+        "url": "{{MANTA_URL}}",
+        "user": "{{ADMIN_USERNAME}}",
+        "sign": {
+            "key": "/root/.ssh/id_rsa",
+            "keyId": "{{ADMIN_KEY_ID}}"
+        },
+        "retry": {
+            "attempts": 5,
+            "minTimeout": 1000
+        },
+        "connectTimeout": 1000,
+        "rejectUnauthorized": {{MANTA_REJECT_UNAUTHORIZED}}
+    }
+}

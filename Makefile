@@ -91,6 +91,7 @@ release: all docs $(SMF_MANIFESTS)
 		$(ROOT)/lib \
 		$(ROOT)/node_modules \
 		$(ROOT)/package.json \
+		$(ROOT)/sapi_manifests \
 		$(TMPDIR)/root/opt/smartdc/$(NAME)
 	#We remove build/prebuilt-* because those symlinks will cause tar
 	# to complain when re-taring as a bundle once deployed, MANTA-495
