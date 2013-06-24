@@ -315,5 +315,6 @@ _opts.getJobObjects = getObjects;
 
 var jobManager = lib.createJobManager(_opts, MANTA_CLIENT, LOG);
 jobManager.run(function () {
+        MANTA_CLIENT.close();
         LOG.info('Done for now.');
 });
