@@ -65,7 +65,7 @@ NPM_ENV		 = MAKE_OVERRIDES="CTFCONVERT=/bin/true CTFMERGE=/bin/true"
 # Repo-specific targets
 #
 .PHONY: all
-all: $(SMF_MANIFESTS) | $(NODEUNIT) $(REPO_DEPS)
+all: $(SMF_MANIFESTS) | $(NODEUNIT) $(REPO_DEPS) scripts
 	$(NPM) rebuild
 $(NODEUNIT): | $(NPM_EXEC)
 	$(NPM) install
@@ -81,11 +81,13 @@ test: $(NODEUNIT)
 release: all docs $(SMF_MANIFESTS)
 	@echo "Building $(RELEASE_TARBALL)"
 	@mkdir -p $(TMPDIR)/root/opt/smartdc/$(NAME)
+	@mkdir -p $(TMPDIR)/root/opt/smartdc/boot
 	@mkdir -p $(TMPDIR)/site
 	@touch $(TMPDIR)/site/.do-not-delete-me
 	@mkdir -p $(TMPDIR)/root
 	@mkdir -p $(TMPDIR)/root/opt/smartdc/$(NAME)/etc
 	cp -r   $(ROOT)/bin \
+		$(ROOT)/boot \
 		$(ROOT)/build \
 		$(ROOT)/index.js \
 		$(ROOT)/lib \
@@ -96,6 +98,11 @@ release: all docs $(SMF_MANIFESTS)
 	#We remove build/prebuilt-* because those symlinks will cause tar
 	# to complain when re-taring as a bundle once deployed, MANTA-495
 	rm $(TMPDIR)/root/opt/smartdc/$(NAME)/build/prebuilt-*
+	mv $(TMPDIR)/root/opt/smartdc/$(NAME)/build/scripts \
+	    $(TMPDIR)/root/opt/smartdc/$(NAME)/boot
+	ln -s /opt/smartdc/$(NAME)/boot/configure.sh \
+	    $(TMPDIR)/root/opt/smartdc/boot/configure.sh
+	chmod 755 $(TMPDIR)/root/opt/smartdc/$(NAME)/boot/configure.sh
 	(cd $(TMPDIR) && $(TAR) -jcf $(ROOT)/$(RELEASE_TARBALL) root site)
 	@rm -rf $(TMPDIR)
 
