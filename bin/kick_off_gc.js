@@ -228,9 +228,9 @@ function findLatestBackupObjects(opts, cb) {
                 });
 
                 res.on('end', function () {
-                        //Assume that if there's objects or no further
-                        // directories to walk down, we're done.
-                        if (dirs.length === 0 || objs.length > 0) {
+                        //Assume that if there's no more directories to walk
+                        //down, we're done.
+                        if (dirs.length === 0) {
                                 cb(null, {
                                         directory: dir,
                                         objects: objs
