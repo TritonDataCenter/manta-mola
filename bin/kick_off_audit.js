@@ -376,8 +376,8 @@ function findObjects(opts, cb) {
                 ],
                 arg: opts
         }, function (err, results) {
-                if (err) {
-                        cb(err);
+                if (err || !results.successes) {
+                        cb(err, []);
                         return;
                 }
 
