@@ -87,7 +87,7 @@ function parseOptions() {
         opts.shards = opts.shards || [];
         opts.reduces = opts.reduces || [];
         opts.tablePrefixes = opts.tablePrefixes || [];
-        var parser = new getopt.BasicParser('a:c:e:m:np:r:t:',
+        var parser = new getopt.BasicParser('a:c:e:m:np:r:st:',
                                             process.argv);
         while ((option = parser.getopt()) !== undefined && !option.error) {
                 switch (option.option) {
@@ -112,6 +112,9 @@ function parseOptions() {
                 case 'r':
                         opts.marlinReducerMemory = parseInt(option.optarg, 10);
                         break;
+                case 's':
+                        opts.readFromStdin = true;
+                        break;
                 case 't':
                         opts.tablePrefixes.push(option.optarg);
                         break;
@@ -121,8 +124,8 @@ function parseOptions() {
                 }
         }
 
-        if (!opts.map) {
-                usage('map must be specified');
+        if (!opts.map && !opts.readFromStdin) {
+                usage('map or reading from stdin must be specified');
         }
 
         //Set up some defaults...
@@ -156,6 +159,7 @@ function usage(msg) {
         str += ' [-n no_job_start]';
         str += ' [-p map_command (only once)]';
         str += ' [-r marlin_reducer_memory]';
+        str += ' [-s read job from stdin]';
         str += ' [-t table_prefix]';
         console.error(str);
         process.exit(1);
@@ -236,24 +240,42 @@ function findLatestBackupObjects(opts, cb) {
 
 
 function getJob(opts, cb) {
-        var job = {
-                phases: []
-        };
-
-        job.phases.push({
-                type: 'map',
-                exec: getMapCmd(opts)
-        });
-        for (var i = 0; i < opts.reduces.length; ++i) {
-                job.phases.push({
-                        type: 'reduce',
-                        count: opts.numberReducers,
-                        memory: opts.marlinReducerMemory,
-                        exec: getReduceCmd(opts, opts.reduces[i])
+        if (opts.readFromStdin) {
+                var jobString = '';
+                process.stdin.setEncoding('utf8');
+                process.stdin.on('data', function (chunk) {
+                        jobString += chunk;
                 });
-        }
 
-        cb(null, job);
+                process.stdin.on('end', function () {
+                        try {
+                                var job = JSON.parse(jobString);
+                        } catch (e) {
+                                cb(e);
+                                return;
+                        }
+                        cb(null, job);
+                });
+                process.stdin.resume();
+        } else {
+                var job = {
+                        phases: []
+                };
+
+                job.phases.push({
+                        type: 'map',
+                        exec: getMapCmd(opts)
+                });
+                for (var i = 0; i < opts.reduces.length; ++i) {
+                        job.phases.push({
+                                type: 'reduce',
+                                count: opts.numberReducers,
+                                memory: opts.marlinReducerMemory,
+                                exec: getReduceCmd(opts, opts.reduces[i])
+                        });
+                }
+                cb(null, job);
+        }
 }
 
 
