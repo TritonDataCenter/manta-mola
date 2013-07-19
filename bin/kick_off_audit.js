@@ -424,7 +424,7 @@ function getObject(objectPath, cb) {
 function checkJobResults(job, audit, opts, cb) {
         // If the job wasn't successful, we don't want any alarms.  Audit will
         // take care of everything we need.
-        if (job.stats.errors > 0) {
+        if (job.stats.errors > 0 || job.cancelled) {
                 cb(null);
                 return;
         }
@@ -441,10 +441,10 @@ function checkJobResults(job, audit, opts, cb) {
                 LOG.info({ jobId: job.id, outputs: res },
                          'Looking at job output.');
                 var parts = res.split('\n');
-                if (parts.length < 2 && parts[1] !== '') {
+                if (parts.length !== 2 && parts[1] !== '') {
                         LOG.fatal({ jobId: job.id },
-                                  'Somehow job has more than one output!');
-                        cb(new Error('Job has more than one output!'));
+                                  'Job doesn\'t have one output!');
+                        cb(new Error('Job doesn\'t have one output!'));
                         return;
                 }
 
