@@ -58,8 +58,9 @@ function manta_setup_mola {
 
     #Metering
     echo '15 * * * * cd /opt/smartdc/mackerel && ./scripts/cron/meter-previous-hour.sh >>/var/log/mackerel.log 2>&1' >>$crontab
-    echo '30 17 * * * cd /opt/smartdc/mackerel && ./scripts/cron/meter-previous-day.sh >>/var/log/mackerel.log 2>&1' >>$crontab
-    echo '45 6 1 * * cd /opt/smartdc/mackerel && ./scripts/cron/meter-previous-month.sh >>/var/log/mackerel.log 2>&1' >>$crontab
+    echo '30 2 * * * cd /opt/smartdc/mackerel && ./scripts/cron/meter-previous-day.sh >>/var/log/mackerel.log 2>&1' >>$crontab
+    echo '55 * * * * cd /opt/smartdc/mackerel && ./scripts/format/rep.sh' >>$crontab
+    echo '55 2 * * * cd /opt/smartdc/mackerel && ./scripts/format/daily.sh' >>$crontab
     gsed -i -e "s|REDIS_HOST|$(mdata-get auth_cache_name)|g" /opt/smartdc/mackerel/etc/config.js
 
     #Graphing, log crunching
