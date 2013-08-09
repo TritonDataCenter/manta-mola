@@ -249,12 +249,12 @@ function getJob(opts, cb) {
 
                 process.stdin.on('end', function () {
                         try {
-                                var job = JSON.parse(jobString);
+                                var j = JSON.parse(jobString);
                         } catch (e) {
                                 cb(e);
                                 return;
                         }
-                        cb(null, job);
+                        cb(null, j);
                 });
                 process.stdin.resume();
         } else {
