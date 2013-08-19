@@ -189,7 +189,7 @@ function getObjectsInDir(dir, cb) {
 }
 
 
-//TODO: Factor out in a common place?  This is copied from gc.
+//TODO: Use one in common...
 function findLatestBackupObjects(opts, cb) {
         if ((typeof (opts)) === 'string' || opts instanceof String) {
                 opts = {
