@@ -61,7 +61,7 @@ function morayCleanShard(shard, obj, cb) {
                                         cb(err2);
                                         return;
                                 }
-                                LOG.info({ obj: o }, 'Done with obj,');
+                                LOG.info({ obj: o }, 'Done with obj.');
                                 cb();
                         });
                 });
