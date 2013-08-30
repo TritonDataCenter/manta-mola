@@ -26,7 +26,7 @@ you look at it):
 1. [Garbage Collection](gc-overview.html)
 2. [Object Auditing](audit-overview.html)
 3. [Potential Cruft Tracking](cruft-overview.html)
-4. [Object Rebalancing](object-rebalancing.html)
+4. [Object Rebalancing](rebalancing-objects.html)
 
 Each of these follow the same pattern for execution:
 
