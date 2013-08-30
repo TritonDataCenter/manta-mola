@@ -26,6 +26,7 @@ you look at it):
 1. [Garbage Collection](gc-overview.html)
 2. [Object Auditing](audit-overview.html)
 3. [Potential Cruft Tracking](cruft-overview.html)
+4. [Object Rebalancing](object-rebalancing.html)
 
 Each of these follow the same pattern for execution:
 
@@ -39,3 +40,5 @@ Depending on which mola job there may be other processes that run:
    create manta object links for moray and mako cleaners.
 2. GC: Ops Zone: Moray cleaner that deletes records from Moray.
 3. GC: Mako Zone: Mako cleaner that tombstones mako data.
+4. Rebalance: Mako Zone: Mako Rebalancer that pulls down objects, updates moray
+   records, and tobstones the object at the old location.

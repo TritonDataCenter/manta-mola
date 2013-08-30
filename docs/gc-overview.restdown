@@ -27,7 +27,7 @@ shards.
 
 1. Moray shard dumps.  Currently located at
 
-    /poseidon/stor/manatee_backups/[shard]/[date]/[table].bz2
+    /poseidon/stor/manatee_backups/[shard]/[date]/[table]-[date].gz
 
 The two tables required for garbage collection are:
 
