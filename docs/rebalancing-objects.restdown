@@ -62,7 +62,7 @@ Next, kick of the rebalance job:
 
 You should verify that the complete set of mako nodes are being used with:
 
-   $ mget /poseidon/stor/manta_rebalance/assets/sharks.json | json
+    $ mget /poseidon/stor/manta_rebalance/assets/sharks.json | json
 
 If the full list isn't being populated or if there are extra nodes, you should
 debug by looking at the manta_storage table.  *Warning*: The picking algorithm
