@@ -47,6 +47,36 @@ files located in the mako-specific manta directory.  For each object it will:
 
 # Performing a rebalance
 
+## ***WARNING***
+
+After the first round of rebalancing it became apparent that this code doesn't
+take links into account.  Doh.  Fortunately, the failure is simple, detectable,
+and fixable.  For some background, when muskie creates a link it copies the
+shark information from one object to another.  The shark information is a *list*
+of storage nodes.  Because it is a list it will always be copied over in the
+same order.  The rebalancing algorithm is dead simple: If all DCs for all sharks
+in the list are the same, replace the *first one*.  The implication is that if
+there are links to an object, the first rebalance will succeed and the
+subsequent ones will fail with a 404 when attempting to read from the old shark
+(because when the first rebalance succeeded, the object was tombstoned on that
+first shark).
+
+Since the data was already broken, the work-around when this was run the first
+time was to audit and run the audit sweeper, which fixed all the rest of the
+links to look like the first.  This can be done in the future, but there are
+some operational implications:
+
+1. From the time that the first object is rebalanced until the other links are
+   fixed, muskie and marlin will throw 500s if the object is accessed or used
+   in a job and the shark where the object no longer exists is chosen.
+
+In order to fix this all links must be updated before the object is tombstoned
+on the old shark.  This affects both the marlin job and the mako app:
+
+1. The marlin job needs to gather all the links into one record (implying we
+   need to msplit, sort and dedupe in reduce phases (one or many))
+2. The mako application needs to update all links before tombstoning.
+
 ## Running the Marlin Job
 
 First, verify that no other operator is currently running a rebalance, then log

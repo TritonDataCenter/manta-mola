@@ -77,12 +77,16 @@ function parseOptions() {
         // command line, and use the defaults if all else fails.
         var opts = MOLA_REBALANCE_CONFIG_OBJ;
         opts.shards = opts.shards || [];
-        var parser = new getopt.BasicParser('a:m:nr:s:t',
+        var forced = false;
+        var parser = new getopt.BasicParser('a:fm:nr:s:t',
                                             process.argv);
         while ((option = parser.getopt()) !== undefined && !option.error) {
                 switch (option.option) {
                 case 'a':
                         opts.assetFile = option.optarg;
+                        break;
+                case 'f':
+                        forced = true;
                         break;
                 case 'm':
                         opts.shards.push(option.optarg);
@@ -106,6 +110,10 @@ function parseOptions() {
                 }
         }
 
+        if (!forced) {
+                notForced();
+        }
+
         if (!opts.storageShard) {
                 usage('Storage shard is required.');
         }
@@ -127,6 +135,18 @@ function parseOptions() {
         opts.marlinAssetObject = opts.assetObject;
 
         return (opts);
+}
+
+
+function notForced() {
+        var warning = [
+                'WARNING: This version of rebalancing does *not* take links ',
+                'into account.  Please read the documentation on the ',
+                'implications before proceeding.  If you\'ve read and ',
+                'understand the implications, reinvoke with the -f flag to ',
+                'force-run.'
+        ].join('\n');
+        usage(warning);
 }
 
 
