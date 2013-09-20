@@ -82,6 +82,8 @@ function manta_setup_mola {
     manta_add_logadm_entry "mackerel" "/var/log" "exact"
     manta_add_logadm_entry "manowar"
     manta_add_logadm_entry "manowar-cron" "/var/log" "exact"
+
+    echo "export THOTH_USER=thoth" >> /root/.bashrc
 }
 
 
