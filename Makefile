@@ -77,6 +77,11 @@ test: $(NODEUNIT)
 	mkdir -p ./tmp
 	find test/ -name '*.test.js' | xargs -n 1 $(NODEUNIT)
 
+.PHONY: scripts
+scripts: deps/manta-scripts/.git
+	mkdir -p $(BUILD)/scripts
+	cp deps/manta-scripts/*.sh $(BUILD)/scripts
+
 .PHONY: release
 release: all docs $(SMF_MANIFESTS)
 	@echo "Building $(RELEASE_TARBALL)"
