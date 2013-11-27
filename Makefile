@@ -52,7 +52,7 @@ include ./tools/mk/Makefile.smf.defs
 #
 RELEASE_TARBALL         := $(NAME)-pkg-$(STAMP).tar.bz2
 ROOT                    := $(shell pwd)
-TMPDIR                  := /tmp/$(STAMP)
+RELSTAGEDIR                  := /tmp/$(STAMP)
 
 #
 # v8plus uses the CTF tools as part of its build, but they can safely be
@@ -85,12 +85,12 @@ scripts: deps/manta-scripts/.git
 .PHONY: release
 release: all docs $(SMF_MANIFESTS)
 	@echo "Building $(RELEASE_TARBALL)"
-	@mkdir -p $(TMPDIR)/root/opt/smartdc/$(NAME)
-	@mkdir -p $(TMPDIR)/root/opt/smartdc/boot
-	@mkdir -p $(TMPDIR)/site
-	@touch $(TMPDIR)/site/.do-not-delete-me
-	@mkdir -p $(TMPDIR)/root
-	@mkdir -p $(TMPDIR)/root/opt/smartdc/$(NAME)/etc
+	@mkdir -p $(RELSTAGEDIR)/root/opt/smartdc/$(NAME)
+	@mkdir -p $(RELSTAGEDIR)/root/opt/smartdc/boot
+	@mkdir -p $(RELSTAGEDIR)/site
+	@touch $(RELSTAGEDIR)/site/.do-not-delete-me
+	@mkdir -p $(RELSTAGEDIR)/root
+	@mkdir -p $(RELSTAGEDIR)/root/opt/smartdc/$(NAME)/etc
 	cp -r   $(ROOT)/bin \
 		$(ROOT)/boot \
 		$(ROOT)/build \
@@ -99,17 +99,17 @@ release: all docs $(SMF_MANIFESTS)
 		$(ROOT)/node_modules \
 		$(ROOT)/package.json \
 		$(ROOT)/sapi_manifests \
-		$(TMPDIR)/root/opt/smartdc/$(NAME)
+		$(RELSTAGEDIR)/root/opt/smartdc/$(NAME)
 	#We remove build/prebuilt-* because those symlinks will cause tar
 	# to complain when re-taring as a bundle once deployed, MANTA-495
-	rm $(TMPDIR)/root/opt/smartdc/$(NAME)/build/prebuilt-*
-	mv $(TMPDIR)/root/opt/smartdc/$(NAME)/build/scripts \
-	    $(TMPDIR)/root/opt/smartdc/$(NAME)/boot
+	rm $(RELSTAGEDIR)/root/opt/smartdc/$(NAME)/build/prebuilt-*
+	mv $(RELSTAGEDIR)/root/opt/smartdc/$(NAME)/build/scripts \
+	    $(RELSTAGEDIR)/root/opt/smartdc/$(NAME)/boot
 	ln -s /opt/smartdc/$(NAME)/boot/configure.sh \
-	    $(TMPDIR)/root/opt/smartdc/boot/configure.sh
-	chmod 755 $(TMPDIR)/root/opt/smartdc/$(NAME)/boot/configure.sh
-	(cd $(TMPDIR) && $(TAR) -jcf $(ROOT)/$(RELEASE_TARBALL) root site)
-	@rm -rf $(TMPDIR)
+	    $(RELSTAGEDIR)/root/opt/smartdc/boot/configure.sh
+	chmod 755 $(RELSTAGEDIR)/root/opt/smartdc/$(NAME)/boot/configure.sh
+	(cd $(RELSTAGEDIR) && $(TAR) -jcf $(ROOT)/$(RELEASE_TARBALL) root site)
+	@rm -rf $(RELSTAGEDIR)
 
 .PHONY: publish
 publish: release
