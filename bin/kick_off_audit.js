@@ -83,12 +83,15 @@ function parseOptions() {
         // command line, and use the defaults if all else fails.
         var opts = MOLA_AUDIT_CONFIG_OBJ;
         opts.shards = opts.shards || [];
-        var parser = new getopt.BasicParser('a:m:nr:s:t',
+        var parser = new getopt.BasicParser('a:d:m:nr:s:t',
                                             process.argv);
         while ((option = parser.getopt()) !== undefined && !option.error) {
                 switch (option.option) {
                 case 'a':
                         opts.assetFile = option.optarg;
+                        break;
+                case 'd':
+                        opts.marlinReducerDisk = parseInt(option.optarg, 10);
                         break;
                 case 'm':
                         opts.shards.push(option.optarg);
@@ -121,6 +124,7 @@ function parseOptions() {
                 '/opt/smartdc/common/bundle/mola.tar.gz';
 
         opts.marlinReducerMemory = opts.marlinReducerMemory || 4096;
+        opts.marlinReducerDisk = opts.marlinReducerDisk || 16;
         opts.marlinPathToAsset = opts.assetObject.substring(1);
         opts.marlinAssetObject = opts.assetObject;
 
@@ -206,6 +210,7 @@ function getAuditJob(opts, cb) {
                         type: 'reduce',
                         count: opts.numberReducers,
                         memory: opts.marlinReducerMemory,
+                        disk: opts.marlinReducerDisk,
                         exec: auditCmd
                 }]
         };
@@ -422,10 +427,16 @@ function getObject(objectPath, cb) {
 
 
 function checkJobResults(job, audit, opts, cb) {
-        // If the job wasn't successful, we don't want any alarms.  Audit will
-        // take care of everything we need.
-        if (job.stats.errors > 0 || job.cancelled) {
+        // If the job was cancelled, we don't want any alarms.
+        if (job.cancelled) {
                 cb(null);
+                return;
+        }
+
+        if (job.stats.errors > 0) {
+                //Log an explicit error to fire an alarm.
+                LOG.error({ jobId: job.id }, 'audit job had errors');
+                cb(new Error('Audit job had errors!'));
                 return;
         }
 
