@@ -15,12 +15,15 @@ var util = require('util');
 function parseOptions() {
         var option;
         var opts = {};
-        var parser = new getopt.BasicParser('d:s:',
+        var parser = new getopt.BasicParser('d:h:s:',
                                             process.argv);
         while ((option = parser.getopt()) !== undefined && !option.error) {
                 switch (option.option) {
                 case 'd':
                         opts.tmpDirectory = option.optarg;
+                        break;
+                case 'h':
+                        opts.mantaStorageId = option.optarg;
                         break;
                 case 's':
                         opts.sharksFile = option.optarg;
@@ -49,6 +52,7 @@ function usage(msg) {
         }
         var str  = 'usage: ' + path.basename(process.argv[1]);
         str += '-d [tmp directory]';
+        str += '-h [manta_storage_id]';
         str += '-s [sharks file]';
         str += '';
         console.error(str);
@@ -64,6 +68,7 @@ _opts.reader = process.stdin;
 
 var _sharks = JSON.parse(fs.readFileSync(_opts.sharksFile));
 var _rebalancer = lib.createRebalancer({
+        mantaStorageId: _opts.mantaStorageId,
         reader: process.stdin,
         sharks: _sharks,
         dir: _opts.tmpDirectory

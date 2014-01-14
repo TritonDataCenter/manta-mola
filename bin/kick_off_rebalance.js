@@ -54,14 +54,34 @@ cd /assets/ && gtar -xzf ' + opts.marlinPathToAsset + ' && cd mola && \
 
 
 /* BEGIN JSSTYLED */
+/**
+ * The map phase takes the pgdump, filters out all the directories
+ * and formats them like:
+ * [objectid] { [json pg row data] }
+ */
+function getMapCmd(opts) {
+        return (getEnvCommon(opts) + ' \
+zcat | ./build/node/bin/node ./bin/pg_transform.js | \
+   ./build/node/bin/node ./bin/jext.js -f objectid -x | \
+   msplit -d " " -f 1 -n ' + opts.numberReducers + ' \
+');
+}
+/* END JSSTYLED */
+
+
+/* BEGIN JSSTYLED */
 function getRebalanceCmd(opts) {
         var sharksAsset = '/assets' + opts.sharksAssetObject;
         var tmpDir = '/var/tmp/sharkDist';
+        var hostOption = '';
+        if (opts.host) {
+                hostOption = '-h ' + opts.host + ' ';
+        }
         return (getEnvCommon(opts) + ' \
 mkdir ' + tmpDir + ' && \
-zcat | ./build/node/bin/node ./bin/pg_transform.js | \
-   ./build/node/bin/node ./bin/rebalance.js \
-      -s ' + sharksAsset + ' -d ' + tmpDir + ' && \
+sort | ./build/node/bin/node ./bin/jext.js -r | \
+    ./build/node/bin/node ./bin/rebalance.js \
+       -s ' + sharksAsset + ' -d ' + tmpDir + ' ' + hostOption + '&& \
 for i in $(ls ' + tmpDir + '); do \
    mmkdir ' + opts.jobRoot + '/do/$i; \
    mput -f ' + tmpDir + '/$i ' + opts.jobRoot + '/do/$i/$MANTA_JOB_ID$(echo $MANTA_INPUT_OBJECT | tr "/" "_"); \
@@ -77,16 +97,19 @@ function parseOptions() {
         // command line, and use the defaults if all else fails.
         var opts = MOLA_REBALANCE_CONFIG_OBJ;
         opts.shards = opts.shards || [];
-        var forced = false;
-        var parser = new getopt.BasicParser('a:fm:nr:s:t',
+        opts.ignoreSharks = [];
+        var parser = new getopt.BasicParser('a:h:i:m:nr:s:t',
                                             process.argv);
         while ((option = parser.getopt()) !== undefined && !option.error) {
                 switch (option.option) {
                 case 'a':
                         opts.assetFile = option.optarg;
                         break;
-                case 'f':
-                        forced = true;
+                case 'h':
+                        opts.host = option.optarg;
+                        break;
+                case 'i':
+                        opts.ignoreSharks.push(option.optarg);
                         break;
                 case 'm':
                         opts.shards.push(option.optarg);
@@ -108,10 +131,6 @@ function parseOptions() {
                         usage('Unknown option: ' + option.option);
                         break;
                 }
-        }
-
-        if (!forced) {
-                notForced();
         }
 
         if (!opts.storageShard) {
@@ -138,24 +157,13 @@ function parseOptions() {
 }
 
 
-function notForced() {
-        var warning = [
-                'WARNING: This version of rebalancing does *not* take links ',
-                'into account.  Please read the documentation on the ',
-                'implications before proceeding.  If you\'ve read and ',
-                'understand the implications, reinvoke with the -f flag to ',
-                'force-run.'
-        ].join('\n');
-        usage(warning);
-}
-
-
 function usage(msg) {
         if (msg) {
                 console.error(msg);
         }
         var str  = 'usage: ' + path.basename(process.argv[1]);
         str += ' [-a asset_object]';
+        str += ' [-h manta_storage_id]';
         str += ' [-m moray_shard]';
         str += ' [-n no_job_start]';
         str += ' [-r marlin_memory]';
@@ -202,6 +210,10 @@ function makeSharksAsset(opts, cb) {
 
 function getRebalanceJob(opts, cb) {
         makeSharksAsset(_opts, function (err, sharks) {
+                //As a first pass, the number of reducers should be the same
+                // as the number of pg shards we have.
+                opts.numberReducers = opts.objects.length;
+
                 if (err) {
                         finish(err);
                         return;
@@ -210,6 +222,11 @@ function getRebalanceJob(opts, cb) {
                 var job = {
                         phases: [ {
                                 type: 'storage-map',
+                                memory: opts.marlinMemory,
+                                exec: getMapCmd(opts)
+                        }, {
+                                type: 'reduce',
+                                count: opts.numberReducers,
                                 memory: opts.marlinMemory,
                                 exec: getRebalanceCmd(opts),
                                 assets: [ opts.sharksAssetObject ]
@@ -260,6 +277,14 @@ function getCurrentSharks(opts, cb) {
                 req.on('record', function (obj) {
                         var dc = obj.value.datacenter;
                         var mantaStorageId = obj.value.manta_storage_id;
+                        //Filter out host if we're migrating away from it.
+                        if (mantaStorageId === opts.host) {
+                                return;
+                        }
+                        //Filter out other ignore hosts
+                        if (opts.ignoreSharks.indexOf(mantaStorageId) !== -1) {
+                                return;
+                        }
                         if (!sharks[dc]) {
                                 sharks[dc] = [];
                         }
@@ -292,6 +317,7 @@ function finish(err) {
         }
         MANTA_CLIENT.close();
         LOG.info('Done for now.');
+        process.exit(0);
 }
 
 var jobManager = lib.createJobManager(_opts, MANTA_CLIENT, LOG);

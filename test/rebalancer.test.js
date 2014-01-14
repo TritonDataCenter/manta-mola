@@ -49,9 +49,17 @@ function o(key, sharks) {
 
 
 before(function (cb) {
-        var stat = fs.statSync(TMP_DIR);
-        if (!stat) {
+        var stat;
+        var err;
+        try {
+                stat = fs.statSync(TMP_DIR);
+        } catch (e) {
+                err = e;
+        }
+        if (err && err.code === 'ENOENT') {
                 fs.mkdirSync(TMP_DIR);
+        } else if (err) {
+                throw (err);
         } else if (!stat.isDirectory()) {
                 cb(new Error('something at path ' + TMP_DIR +
                              ' already exists'));
@@ -70,9 +78,10 @@ after(function (cb) {
 });
 
 
-function runTest(data, cb) {
-        var stream = new MemoryStream(data);
+function runTest(opts, cb) {
+        var stream = new MemoryStream(opts.data);
         var rebalancer = lib.createRebalancer({
+                mantaStorageId: opts.mantaStorageId,
                 reader: stream,
                 sharks: SHARKS,
                 dir: TMP_DIR
@@ -108,7 +117,7 @@ test('test: no rebalance', function (t) {
                 { 'manta_storage_id': 'two', 'datacenter': '2' }
         ]);
 
-        runTest(data, function (err, res) {
+        runTest({ data: data }, function (err, res) {
                 t.ok(Object.keys(res).length === 0);
                 t.end();
         });
@@ -122,7 +131,7 @@ test('test: rebalance first', function (t) {
                         { 'manta_storage_id': 'one', 'datacenter': '1' }
                 ]);
 
-        runTest(data, function (err, res) {
+        runTest({ data: data }, function (err, res) {
                 t.ok(Object.keys(res).length === 1);
                 var filename = Object.keys(res)[0];
                 t.equal('two', filename);
@@ -158,7 +167,7 @@ test('test: rebalance middle', function (t) {
                         { 'manta_storage_id': 'one', 'datacenter': '1' }
                 ]);
 
-        runTest(data, function (err, res) {
+        runTest({ data: data }, function (err, res) {
                 t.ok(Object.keys(res).length === 1);
                 var filename = Object.keys(res)[0];
                 t.equal('two', filename);
@@ -183,11 +192,69 @@ test('test: rebalance last', function (t) {
                         { 'manta_storage_id': 'one', 'datacenter': '1' }
                 ]);
 
-        runTest(data, function (err, res) {
+        runTest({ data: data }, function (err, res) {
                 t.ok(Object.keys(res).length === 1);
                 var filename = Object.keys(res)[0];
                 t.equal('two', filename);
                 t.equal('k3', res[filename][0].key);
+                t.end();
+        });
+});
+
+
+test('test: Rebalance away, one shark', function (t) {
+        var data =
+                o('k1', [
+                        { 'manta_storage_id': 'three', 'datacenter': '3' }
+                ]);
+
+        runTest({ data: data, mantaStorageId: 'three' }, function (err, res) {
+                t.ok(Object.keys(res).length === 1);
+                var filename = Object.keys(res)[0];
+                t.ok(['one', 'two'].indexOf(filename) !== -1);
+                var ob = res[filename];
+                t.ok(ob.length === 1);
+                var obj = ob[0];
+                assert.deepEqual({
+                        key: 'k1',
+                        morayEtag: 'metag',
+                        newShark: filename === 'one' ? SHARKS['1'][0] :
+                                SHARKS['2'][0],
+                        oldShark: { manta_storage_id: 'three',
+                                    datacenter: '3' },
+                        md5: 'md5',
+                        objectId: 'objectId',
+                        owner: 'owner',
+                        etag: 'oetag' }, obj);
+                t.end();
+        });
+});
+
+
+test('test: Rebalance away, many sharks', function (t) {
+        var data =
+                o('k1', [
+                        { 'manta_storage_id': 'two', 'datacenter': '2' },
+                        { 'manta_storage_id': 'three', 'datacenter': '3' }
+                ]);
+
+        runTest({ data: data, mantaStorageId: 'three' }, function (err, res) {
+                t.ok(Object.keys(res).length === 1);
+                var filename = Object.keys(res)[0];
+                t.equal('one', filename);
+                var ob = res[filename];
+                t.ok(ob.length === 1);
+                var obj = ob[0];
+                assert.deepEqual({
+                        key: 'k1',
+                        morayEtag: 'metag',
+                        newShark: SHARKS['1'][0],
+                        oldShark: { manta_storage_id: 'three',
+                                    datacenter: '3' },
+                        md5: 'md5',
+                        objectId: 'objectId',
+                        owner: 'owner',
+                        etag: 'oetag' }, obj);
                 t.end();
         });
 });

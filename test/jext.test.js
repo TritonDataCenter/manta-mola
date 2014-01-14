@@ -11,16 +11,16 @@ var helper = require('./helper.js');
 var jext = './bin/jext.js';
 
 var log = new bunyan({
-    'name': 'jext.test.js',
-    'level': process.env['LOG_LEVEL'] || 'debug'
+        'name': 'jext.test.js',
+        'level': process.env['LOG_LEVEL'] || 'debug'
 });
 
 var test = helper.test;
 
 var objs = [
-        { "name": { "first": "joe", "last": "johnson" }, "rank": "captain" },
-        { "name": { "first": "bob", "last": "johnson" }, "rank": "ensign" },
-        { "name": { "first": "sarah", "last": "miller" }, "rank": "commander" }
+        { 'name': { 'first': 'joe', 'last': 'johnson' }, 'rank': 'captain' },
+        { 'name': { 'first': 'bob', 'last': 'johnson' }, 'rank': 'ensign' },
+        { 'name': { 'first': 'sarah', 'last': 'miller' }, 'rank': 'commander' }
 ];
 var ostrings = objs.map(function (o) {
         return (JSON.stringify(o, null, 0));
@@ -127,6 +127,33 @@ test('manyDeepField', function (t) {
                                  objs[i]['name']['first'] + ' ' +
                                  ostrings[i]);
                 }
+                t.equal(exp.join('\n') + '\n', result.stdout);
+                t.done();
+        });
+
+});
+
+
+test('excludeSomething', function (t) {
+        var os = [
+                { 'foo': 'bar', 'x': 'y' },
+                { 'foo': 'bar' },
+                { 'foo': 'bar', 'x': null },
+                { 'foo': 'bar', 'x': undefined },
+                { 'foo': 'bar', 'x': 'z' }
+        ];
+        var ss = os.map(function (o) {
+                return (JSON.stringify(o, null, 0));
+        });
+        var stdin = ss.join('\n');
+        runTest({
+                stdin: stdin,
+                opts: ['-f', 'x', '-x']
+        }, function (result) {
+                t.equal(0, result.code);
+                var exp = [];
+                exp.push(os[0]['x'] + ' ' + ss[0]);
+                exp.push(os[4]['x'] + ' ' + ss[4]);
                 t.equal(exp.join('\n') + '\n', result.stdout);
                 t.done();
         });

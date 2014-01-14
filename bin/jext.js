@@ -14,7 +14,10 @@ var path = require('path');
  *     $ echo '{ "foo": "bar" }' | jext -f foo
  *     bar { "foo": "bar" }
  *
- * When run in reverse mode (-r) it will remove the prefixes (if any)/
+ * When run in reverse mode (-r) it will remove the prefixes (if any).
+ *
+ * When run with the -x (exclude) flag, it will not include the line if any
+ * one of the fields is null or undefined.
  *
  * TODO: Add a delimiter other than space.
  */
@@ -26,7 +29,8 @@ function parseOptions() {
         var opts = {};
         opts.fields = [];
         opts.reverse = false;
-        var parser = new getopt.BasicParser('f:r',
+        opts.exclude = false;
+        var parser = new getopt.BasicParser('f:rx',
                                             process.argv);
         while ((option = parser.getopt()) !== undefined && !option.error) {
                 switch (option.option) {
@@ -35,6 +39,9 @@ function parseOptions() {
                         break;
                 case 'r':
                         opts.reverse = true;
+                        break;
+                case 'x':
+                        opts.exclude = true;
                         break;
                 default:
                         usage('Unknown option: ' + option.option);
@@ -55,8 +62,9 @@ function usage(msg) {
                 console.error(msg);
         }
         var str  = 'usage: ' + path.basename(process.argv[1]);
-        str += '-f [json field]';
-        str += '-r';
+        str += '-f [json field] ';
+        str += '-r ';
+        str += '-x ';
         str += '';
         console.error(str);
         process.exit(2);
@@ -111,14 +119,19 @@ _carrier.on('line', function (line) {
                         }, 'line cannot be parsed as a json object');
                 }
                 var s = '';
+                var shouldLog = true;
                 _opts.fields.forEach(function (field) {
                         var f = getField(field, obj);
-                        if (f.value) {
+                        if (f.value !== null && f.value !== undefined) {
                                 s += f.value;
+                        } else if (_opts.exclude) {
+                                shouldLog = false;
                         }
                         s += ' ';
                 });
-                console.log(s + line);
+                if (shouldLog) {
+                        console.log(s + line);
+                }
         }
 });
 
