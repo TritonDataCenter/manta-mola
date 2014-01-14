@@ -84,7 +84,8 @@ sort | ./build/node/bin/node ./bin/jext.js -r | \
        -s ' + sharksAsset + ' -d ' + tmpDir + ' ' + hostOption + '&& \
 for i in $(ls ' + tmpDir + '); do \
    mmkdir ' + opts.jobRoot + '/do/$i; \
-   mput -f ' + tmpDir + '/$i ' + opts.jobRoot + '/do/$i/$MANTA_JOB_ID$(echo $MANTA_INPUT_OBJECT | tr "/" "_"); \
+   mput -f ' + tmpDir + '/$i \
+     ' + opts.jobRoot + '/do/$i/$MANTA_JOB_ID-X-$(uuid); \
 done \
 ');
 }
