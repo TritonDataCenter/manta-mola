@@ -20,7 +20,9 @@ mako nodes, but within the same datacenter.
     /poseidon/stor/manatee_backups/[shard]/[date]/manta-[date].gz
 
 2. Current set of mako nodes.  The kick_off_rebalance app will automatically
-   pull this list from the `manta_storage` table in moray.
+   pull this list from the `manta_storage` table in moray.  You can optionally
+   give a set of manta_storage_ids that will be ignored so that any rebalanced
+   objects won't land on those hosts.
 
 ## Phase 1: Marlin job
 
@@ -38,66 +40,71 @@ new shark and uploaded to Manta under:
 On each mako node, an operator runs an application by hand that will process all
 files located in the mako-specific manta directory.  For each object it will:
 
-1. Fetch the moray record and verify it hasn't been updated since the job ran.
+1. Fetch all moray records for the object and verify it hasn't been updated
+   since the job ran.
 2. Pull down the object from the old mako node.
 3. Verify the checksum of the new file matches what's in Moray.
 4. Move the new file into the correct location on the new mako node.
-5. Update the moray record, replacing the old shark with the new shark.
+5. Update all moray records, replacing the old shark with the new shark.
 6. Move the remote file to the daily tombstone directory.
 
 # Performing a rebalance
 
-## ***WARNING***
-
-After the first round of rebalancing it became apparent that this code doesn't
-take links into account.  Doh.  Fortunately, the failure is simple, detectable,
-and fixable.  For some background, when muskie creates a link it copies the
-shark information from one object to another.  The shark information is a *list*
-of storage nodes.  Because it is a list it will always be copied over in the
-same order.  The rebalancing algorithm is dead simple: If all DCs for all sharks
-in the list are the same, replace the *first one*.  The implication is that if
-there are links to an object, the first rebalance will succeed and the
-subsequent ones will fail with a 404 when attempting to read from the old shark
-(because when the first rebalance succeeded, the object was tombstoned on that
-first shark).
-
-Since the data was already broken, the work-around when this was run the first
-time was to audit and run the audit sweeper, which fixed all the rest of the
-links to look like the first.  This can be done in the future, but there are
-some operational implications:
-
-1. From the time that the first object is rebalanced until the other links are
-   fixed, muskie and marlin will throw 500s if the object is accessed or used
-   in a job and the shark where the object no longer exists is chosen.
-
-In order to fix this all links must be updated before the object is tombstoned
-on the old shark.  This affects both the marlin job and the mako app:
-
-1. The marlin job needs to gather all the links into one record (implying we
-   need to msplit, sort and dedupe in reduce phases (one or many))
-2. The mako application needs to update all links before tombstoning.
-
 ## Running the Marlin Job
 
-First, verify that no other operator is currently running a rebalance, then log
+It is expected that common need for rebalancing is when all objects need to be
+moved from a mako node (dying host).  This example walks you through doing that.
+
+First, find the manta_storage_id for the host that is problematic and verify
+that:
+
+1. The mako node is receiving no more writes.
+2. nginx is still up and running as well as registrar in the storage zone.
+3. The latest moray dumps have been taken *after* the last write.
+
+    [root@409edbbe (storage) ~]$ svcadm disable minnow
+    [root@409edbbe (storage) ~]$ json -f /opt/smartdc/mako/etc/mako_rebalancer_config.json manta_storage_id
+    3.stor.coal.joyent.us
+    [root@27b5d86a (moray) ~]$ (set -o pipefail; \
+        export KEY=$(findobjects manta_storage '(manta_storage_id=3.stor.coal.joyent.us)' | json key); \
+        getobject manta_storage $KEY | json value | \
+            json -e 'timestamp = 1356998400000' > new.json && \
+        putobject -d "$(cat new.json)" manta_storage $KEY && echo okay)
+    [root@8d626e7f (webapi) ~]$ svcadm restart *muskie*
+    [root@1bf3106e (ops) ~]$ mls -l /poseidon/stor/manatee_backups/1.moray.coal.joyent.us/2014/01/14/15/manta-2014-01-14-15-05-11.gz
+    -rwxr-xr-x 1 poseidon        276543 Jan 14 15:40 manta-2014-01-14-15-05-11.gz
+    [root@1bf3106e (ops) ~]$ date
+    Tue Jan 14 15:40:59 UTC 2014
+
+Now verify that no other operator is currently running a rebalance, then log
 into the ops zone and clear out any old rebalance data:
 
     $ mrm -r /poseidon/stor/manta_rebalance
 
 This isn't strictly necessary, but guarantees that any stale data won't be read.
 
-Next, kick of the rebalance job:
+Next, kick of the rebalance job, specifying the dying host:
 
-    $ /opt/smartdc/mola/bin/kick_off_rebalance.js | bunyan
+    $ /opt/smartdc/mola/bin/kick_off_rebalance.js \
+      -h 3.stor.coal.joyent.us | bunyan
 
-You should verify that the complete set of mako nodes are being used with:
+You can specify other hosts to ignore (so they will will receive no objects as
+part of the rebaolance) by specifying the -i option.  For example, this will
+balance off 3.stor and no rebalanced objects will land on 2.stor and 4.stor:
+
+    $ /opt/smartdc/mola/bin/kick_off_rebalance.js \
+      -h 3.stor.coal.joyent.us \
+      -i 2.stor.coal.joyent.us -i 4.stor.coal.joyent.us | bunyan
+
+After starting the job you should verify that the set of mako nodes you expect
+is exactly this list:
 
     $ mget /poseidon/stor/manta_rebalance/assets/sharks.json | json
 
 If the full list isn't being populated or if there are extra nodes, you should
 debug by looking at the manta_storage table.  *Warning*: The picking algorithm
-is really dumb- it chooses a random node in another datacenter, regardless if it
-has room or not.  We'll have to modify this in the future if/when we need to.
+is really dumb- it chooses a random available node, regardless if it has room or
+not.  We'll have to modify this in the future if/when we need to.
 
 Once the job has finished (the job id should be in the output), check for
 errors.  If there are no errors, verify that it produced files:
@@ -147,8 +154,11 @@ Then check for errors in the logs:
 
     $ bunyan -l error /var/tmp/mako_rebalance.log
 
-Clean up any crufty data.  Once all mako nodes have processed their files,
-you're all done!
+Clean up any crufty data.  Once all mako nodes have processed their files you
+should run a job that verifies that there are no more references to the dying
+mako node in the live tables.  Here is an example job:
+
+    $ TODO
 
 # Known errors
 
