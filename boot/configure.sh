@@ -166,4 +166,14 @@ manta_setup_rsyslogd
 
 manta_common_setup_end
 
+echo "Applying mola-specific environment changes"
+SAPI_URL="$(mdata-get SAPI_URL)"
+marlin_moray_url="$(curl -s $SAPI_URL/configs/$(zonename) | \
+    json metadata.MARLIN_MORAY_SHARD)"
+if [[ -n "$marlin_moray_url" ]]; then
+	echo "export MORAY_URL=$marlin_moray_url" >> /root/.bashrc
+else
+	echo "warning: marlin moray URL not found"
+fi
+
 exit 0
