@@ -170,7 +170,7 @@ echo "Applying mola-specific environment changes"
 SAPI_URL="$(mdata-get SAPI_URL)"
 marlin_moray_host="$(curl -s $SAPI_URL/configs/$(zonename) | \
     json metadata.MARLIN_MORAY_SHARD)"
-if [[ -n "$marlin_moray_url" ]]; then
+if [[ -n "$marlin_moray_host" ]]; then
 	echo "export MORAY_URL=tcp://$marlin_moray_host:2020" >> /root/.bashrc
 else
 	echo "warning: marlin moray URL not found"
