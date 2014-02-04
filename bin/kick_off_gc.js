@@ -70,7 +70,7 @@ function getPgTransformCmd(opts) {
         }
         return (getEnvCommon(opts) + ' \
 export MORAY_SHARD=$(echo $mc_input_key | cut -d "/" -f 5) && \
-export DUMP_DATE=$(basename $mc_input_key | sed \'s/^\\w*-//; s/.gz$//;\') && \
+export DUMP_DATE=$(basename $mc_input_key | sed \'s/^\\w*-//; s/.\\w*$//;\') && \
 gzcat -f | \
   ./build/node/bin/node ./bin/gc_pg_transform.js -d $DUMP_DATE \
     -e ' + opts.earliestDumpDate + ' \

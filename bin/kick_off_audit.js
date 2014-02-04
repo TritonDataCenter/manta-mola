@@ -236,7 +236,7 @@ function findMorayBackupObject(opts, cb) {
         // mako dump, but still earlier.  We're looking for
         // /[MANTA_USER]/stor/manatee_backups/[shard]/\
         //    [year]/[month]/[day]/[hour]/\
-        //    manta-[year]-[month]-[day]-[hour]-[minutes]-[seconds].gz
+        //    manta-[year]-[month]-[day]-[hour]-[minutes]-[seconds].[\w*]
 
         //Subtract one hour for each offset
         var ed = new Date(earliestMakoDump);
