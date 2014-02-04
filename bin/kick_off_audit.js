@@ -60,7 +60,7 @@ function getTransformCmd(opts) {
                 grepForStorageNode = ' | grep ' + opts.mantaStorageId + ' | ';
         }
         return (getEnvCommon(opts) + ' \
-if [[ "$MANTA_INPUT_OBJECT" = *.gz ]]; then zcat; else cat; fi | \
+gzcat -f | \
   ./build/node/bin/node ./bin/audit_transform.js -k $MANTA_INPUT_OBJECT \
     ' + grepForStorageNode + ' \
 ');

@@ -51,7 +51,7 @@ cd /assets/ && gtar -xzf ' + opts.marlinPathToAsset + ' && cd mola && \
 /* BEGIN JSSTYLED */
 function getMapCmd(opts) {
         var cmd = getEnvCommon(opts) + ' \
-zcat | ./build/node/bin/node ./bin/pg_transform.js | \
+gzcat -f | ./build/node/bin/node ./bin/pg_transform.js | \
    ' + opts.map + ' \
 ';
         return (cmd);

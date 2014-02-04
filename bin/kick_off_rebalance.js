@@ -61,7 +61,7 @@ cd /assets/ && gtar -xzf ' + opts.marlinPathToAsset + ' && cd mola && \
  */
 function getMapCmd(opts) {
         return (getEnvCommon(opts) + ' \
-zcat | ./build/node/bin/node ./bin/pg_transform.js | \
+gzcat -f | ./build/node/bin/node ./bin/pg_transform.js | \
    ./build/node/bin/node ./bin/jext.js -f objectid -x | \
    msplit -d " " -f 1 -n ' + opts.numberReducers + ' \
 ');
