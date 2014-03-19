@@ -62,7 +62,8 @@ function getTransformCmd(opts) {
         return (getEnvCommon(opts) + ' \
 gzcat -f | \
   ./build/node/bin/node ./bin/audit_transform.js -k $MANTA_INPUT_OBJECT \
-    ' + grepForStorageNode + ' \
+    ' + grepForStorageNode + ' | \
+  msplit -n ' + opts.numberReducers + ' \
 ');
 }
 /* END JSSTYLED */
@@ -187,21 +188,13 @@ function getObjectsInDir(dir, cb) {
 
 
 function getAuditJob(opts, cb) {
-        //TODO: Fix this.
-        opts.numberReducers = 1;
+        //Use the same number of reducers as input files.
+        opts.numberReducers = opts.objects.length;
 
         var pgCmd = getTransformCmd(opts);
         var auditCmd = getAuditCmd(opts);
 
-        /**
-         * TODO: Add this reduce back in after we have multiple
-         *       reducers working.
-         * , {
-         *         type: 'reduce',
-         *         count: 1,
-         *         exec: 'cat'
-         * }
-         */
+
         var job = {
                 phases: [ {
                         type: 'storage-map',
@@ -212,7 +205,11 @@ function getAuditJob(opts, cb) {
                         memory: opts.marlinReducerMemory,
                         disk: opts.marlinReducerDisk,
                         exec: auditCmd
-                }]
+                }, {
+                        type: 'reduce',
+                        count: 1,
+                        exec: 'cat'
+                } ]
         };
 
         LOG.info({ job: job }, 'Audit Marlin Job Definition');
@@ -436,7 +433,7 @@ function checkJobResults(job, audit, opts, cb) {
         if (job.stats.errors > 0) {
                 //Log an explicit error to fire an alarm.
                 LOG.error({ jobId: job.id }, 'audit job had errors');
-                cb(new Error('Audit job had errors!'));
+                cb(null);
                 return;
         }
 
@@ -455,7 +452,7 @@ function checkJobResults(job, audit, opts, cb) {
                 if (parts.length !== 2 && parts[1] !== '') {
                         LOG.fatal({ jobId: job.id },
                                   'Job doesn\'t have one output!');
-                        cb(new Error('Job doesn\'t have one output!'));
+                        cb(null);
                         return;
                 }
 
