@@ -1,0 +1,30 @@
+{
+  "registration": {
+    "domain": "{{SERVICE_NAME}}",
+    "type": "ops_host",
+    "service": {
+      "type": "service",
+      "service": {
+        "srvce": "_ops",
+        "proto": "_tcp",
+        "port": 10514
+      },
+      "ttl": 60
+    },
+    "ttl": 30
+  },
+
+  "zookeeper": {
+    "servers": [
+      {{#ZK_SERVERS}}
+        {
+          "host": "{{host}}",
+          "port": {{port}}
+        }{{^last}}, {{/last}}
+      {{/ZK_SERVERS}}
+    ],
+    "timeout": 60000
+  },
+
+  "adminIp": "{{MANTA_IP}}"
+}
