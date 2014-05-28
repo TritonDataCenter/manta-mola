@@ -24,7 +24,7 @@ function manta_setup_manowar_user {
     cp -r /root/.ssh /home/manowar/.
     chown -R manowar /home/manowar/.ssh
     cat /opt/smartdc/common/etc/config.json | \
-        json -e "manta.sign.key='/home/manowar/.ssh/id_rsa'" \
+        json -e "this.manta.sign.key='/home/manowar/.ssh/id_rsa'" \
         >/home/manowar/manta.config.json
 }
 

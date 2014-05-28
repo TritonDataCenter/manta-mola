@@ -68,7 +68,7 @@ that:
     [root@27b5d86a (moray) ~]$ (set -o pipefail; \
         export KEY=$(findobjects manta_storage '(manta_storage_id=3.stor.coal.joyent.us)' | json key); \
         getobject manta_storage $KEY | json value | \
-            json -e 'timestamp = 1356998400000' > new.json && \
+            json -e 'this.timestamp = 1356998400000' > new.json && \
         putobject -d "$(cat new.json)" manta_storage $KEY && echo okay)
     [root@8d626e7f (webapi) ~]$ svcadm restart *muskie*
     [root@1bf3106e (ops) ~]$ mls -l /poseidon/stor/manatee_backups/1.moray.coal.joyent.us/2014/01/14/15/manta-2014-01-14-15-05-11.gz
