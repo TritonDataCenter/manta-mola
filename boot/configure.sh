@@ -63,6 +63,12 @@ function manta_setup_mola {
     echo '55 2 * * * cd /opt/smartdc/mackerel && ./scripts/format/daily.sh' >>$crontab
     gsed -i -e "s|REDIS_HOST|$(mdata-get auth_cache_name)|g" /opt/smartdc/mackerel/etc/config.js
 
+    #Process postgres dumps
+    mmkdir -p ~~/stor/pgdump/assets
+    mput -f /opt/smartdc/mackerel/scripts/pg_process/process_dump.sh ~~/stor/pgdump/assets/process_dump.sh
+    mput -f /opt/smartdc/mackerel/scripts/pg_process/postgresql.conf ~~/stor/pgdump/assets/postgresql.conf
+    echo '0 * * * * /opt/smartdc/mackerel/scripts/pg_process/start-job.sh >> /var/log/pg_process.log 2>&1' >>$crontab
+
     #Graphing, log crunching
     cd /opt/smartdc && tar -chzf /opt/smartdc/common/bundle/manowar.tar.gz manowar; cd -
     echo '16,46 * * * * cd /opt/smartdc/manowar && ./build/node/bin/node ./bin/kick_off_log_processing.js >>/var/log/manowar-cron.log 2>&1' >>$crontab
