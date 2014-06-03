@@ -43,6 +43,7 @@ var MANTA_DUMP_NAME_PREFIX = 'manta-';
 var MANTA_DELETE_LOG_DUMP_NAME_PREFIX = 'manta_delete_log-';
 var RUNNING_STATE = 'running';
 var MAX_SECONDS_IN_AUDIT_OBJECT = 60 * 60 * 24 * 7; // 7 days
+var MAX_HOURS_IN_PAST = 8;
 
 
 
@@ -196,28 +197,58 @@ function endsWith(str, suffix) {
 }
 
 
+function pad(n) {
+        return ((n < 10) ? '0' + n : '' + n);
+}
+
+
 function findLatestBackupObjects(opts, cb) {
         if ((typeof (opts)) === 'string' || opts instanceof String) {
                 opts = {
-                        dir: BACKUP_DIR + '/' + opts
+                        'shard': opts,
+                        'iteration': 0,
+                        'timestamp': new Date().getTime()
                 };
         }
-        assert.string(opts.dir);
+        assert.string(opts.shard, 'opts.shard');
+        assert.number(opts.iteration, 'opts.iteration');
+        assert.number(opts.timestamp, 'opts.timestamp');
 
-        var dir = opts.dir;
+        // Kick out here
+        if (opts.iteration >= MAX_HOURS_IN_PAST) {
+                cb(new Error('Couldnt find objects for ' +
+                             opts.shard + ' in past ' +
+                             opts.iteration + ' hours'));
+                return;
+        }
+
+        // # of iteration hours before
+        var d = new Date(opts.timestamp - (opts.iteration * 60 * 60 * 1000));
+
+        // Construct a path like:
+        // /poseidon/stor/manatee_backups/1.moray.coal.joyent.us/2014/05/04/20
+        var dir = BACKUP_DIR + '/' +
+                opts.shard + '/' +
+                d.getFullYear() + '/' +
+                pad(d.getMonth() + 1) + '/' +
+                pad(d.getDay()) + '/' +
+                pad(d.getHours());
 
         MANTA_CLIENT.ls(dir, {}, function (err, res) {
-                if (err) {
+                function next() {
+                        opts.iteration += 1;
+                        findLatestBackupObjects(opts, cb);
+                }
+                if (err && err.code !== 'NotFoundError') {
                         cb(err);
                         return;
                 }
+                if (err) {
+                        next();
+                        return;
+                }
 
-                var dirs = [];
                 var objs = [];
-
-                res.on('directory', function (d) {
-                        dirs.push(d.name);
-                });
 
                 res.on('object', function (o) {
                         objs.push(o.name);
@@ -228,18 +259,25 @@ function findLatestBackupObjects(opts, cb) {
                 });
 
                 res.on('end', function () {
-                        //Assume that if there's no more directories to walk
-                        //down, we're done.
-                        if (dirs.length === 0) {
+                        var foundManta = false;
+                        var foundDeleteLog = false;
+                        objs.forEach(function (o) {
+                                if (startsWith(o, MANTA_DUMP_NAME_PREFIX)) {
+                                        foundManta = true;
+                                }
+                                var mdlp = MANTA_DELETE_LOG_DUMP_NAME_PREFIX;
+                                if (startsWith(o, mdlp)) {
+                                        foundDeleteLog = true;
+                                }
+                        });
+                        if (foundManta && foundDeleteLog) {
                                 cb(null, {
                                         directory: dir,
                                         objects: objs
                                 });
                                 return;
                         }
-                        dirs.sort(function (a, b) { return (b - a); });
-                        dir += '/' + dirs[0];
-                        findLatestBackupObjects({ dir: dir }, cb);
+                        next();
                 });
         });
 }
