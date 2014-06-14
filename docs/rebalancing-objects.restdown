@@ -62,6 +62,8 @@ that:
 2. nginx is still up and running as well as registrar in the storage zone.
 3. The latest moray dumps have been taken *after* the last write.
 
+Like so:
+
     [root@409edbbe (storage) ~]$ svcadm disable minnow
     [root@409edbbe (storage) ~]$ json -f /opt/smartdc/mako/etc/mako_rebalancer_config.json manta_storage_id
     3.stor.coal.joyent.us
