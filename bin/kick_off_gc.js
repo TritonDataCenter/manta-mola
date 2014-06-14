@@ -231,7 +231,7 @@ function findLatestBackupObjects(opts, cb) {
                 opts.shard + '/' +
                 d.getFullYear() + '/' +
                 pad(d.getMonth() + 1) + '/' +
-                pad(d.getDay()) + '/' +
+                pad(d.getDate()) + '/' +
                 pad(d.getHours());
 
         MANTA_CLIENT.ls(dir, {}, function (err, res) {
@@ -381,7 +381,10 @@ function findGcObjects(opts, cb) {
                 }
 
                 dates.sort();
-                LOG.info({ dates: dates }, 'found dates');
+                LOG.info({
+                        dates: dates,
+                        objects: objects
+                }, 'found gc objects');
                 opts.earliestDumpDate = dates[0];
 
                 cb(null, objects);
