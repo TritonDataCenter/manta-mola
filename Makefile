@@ -36,6 +36,7 @@ JSSTYLE_FLAGS    = -f tools/jsstyle.conf
 NAME                  = mola
 NODE_PREBUILT_VERSION = v0.8.26
 NODE_PREBUILT_TAG     = zone
+NODE_PREBUILT_IMAGE   = fd2cc906-8938-11e3-beab-4359c665ac99
 
 
 include ./tools/mk/Makefile.defs
