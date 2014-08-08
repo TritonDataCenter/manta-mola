@@ -16,33 +16,6 @@ source ${DIR}/scripts/services.sh
 
 export PATH=$SVC_ROOT/build/node/bin:/opt/local/bin:/usr/sbin/:/usr/bin:$PATH
 
-function manta_setup_manowar_user {
-    useradd -c "Man O War" -b /home -d /home/manowar -s /usr/bin/bash manowar
-    usermod -K defaultpriv=basic,net_privaddr manowar
-    mkdir /home/manowar
-    chown manowar /home/manowar
-    cp -r /root/.ssh /home/manowar/.
-    chown -R manowar /home/manowar/.ssh
-    cat /opt/smartdc/common/etc/config.json | \
-        json -e "this.manta.sign.key='/home/manowar/.ssh/id_rsa'" \
-        >/home/manowar/manta.config.json
-}
-
-function manta_add_manowar_to_path {
-    while IFS='' read -r line
-    do
-        if [[ $line == export\ PATH=* ]]
-        then
-            B=$(echo "$line" | cut -d '=' -f 1)
-            E=$(echo "$line" | cut -d '=' -f 2)
-            echo $B=/opt/smartdc/manowar/bin:$E
-        else
-            echo "$line"
-        fi
-    done < /root/.bashrc >/root/.bashrc_new
-    mv /root/.bashrc_new /root/.bashrc
-}
-
 function manta_setup_mola {
     local crontab=/tmp/.manta_mola_cron
     crontab -l > $crontab
@@ -69,15 +42,6 @@ function manta_setup_mola {
     mput -f /opt/smartdc/mackerel/scripts/pg_process/postgresql.conf ~~/stor/pgdump/assets/postgresql.conf
     echo '0 * * * * /opt/smartdc/mackerel/scripts/pg_process/start-job.sh >> /var/log/pg_process.log 2>&1' >>$crontab
 
-    #Graphing, log crunching
-    cd /opt/smartdc && tar -chzf /opt/smartdc/common/bundle/manowar.tar.gz manowar; cd -
-    echo '16,46 * * * * cd /opt/smartdc/manowar && ./build/node/bin/node ./bin/kick_off_log_processing.js >>/var/log/manowar-cron.log 2>&1' >>$crontab
-
-    #Graphing, server
-    svccfg import /opt/smartdc/manowar/smf/manifests/manowar.xml \
-        || fatal "unable to import manowar manifest"
-    svcadm enable manowar || fatal "unable to start manowar"
-
     crontab $crontab
     [[ $? -eq 0 ]] || fatal "Unable import crons"
 
@@ -86,8 +50,6 @@ function manta_setup_mola {
     manta_add_logadm_entry "mola-moray-gc" "/var/log" "exact"
     manta_add_logadm_entry "mola-audit" "/var/log" "exact"
     manta_add_logadm_entry "mackerel" "/var/log" "exact"
-    manta_add_logadm_entry "manowar"
-    manta_add_logadm_entry "manowar-cron" "/var/log" "exact"
 
     echo "export THOTH_USER=thoth" >> /root/.bashrc
 }
@@ -160,10 +122,6 @@ manta_add_manifest_dir "/opt/smartdc/mola"
 manta_common_setup "mola"
 
 manta_ensure_zk
-
-manta_setup_manowar_user
-
-manta_add_manowar_to_path
 
 echo "Setting up mola crons"
 manta_setup_mola
