@@ -67,7 +67,7 @@ NPM_ENV		 = MAKE_OVERRIDES="CTFCONVERT=/bin/true CTFMERGE=/bin/true"
 #
 .PHONY: all
 all: $(SMF_MANIFESTS) | $(NODEUNIT) $(REPO_DEPS) scripts
-	$(NPM) rebuild
+	$(NPM) install
 $(NODEUNIT): | $(NPM_EXEC)
 	$(NPM) install
 
