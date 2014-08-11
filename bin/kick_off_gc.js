@@ -75,7 +75,8 @@ export DUMP_DATE=$(basename $mc_input_key | sed \'s/^\\w*-//; s/.\\w*$//;\') && 
 gzcat -f | \
   ./build/node/bin/node ./bin/gc_pg_transform.js -d $DUMP_DATE \
     -e ' + opts.earliestDumpDate + ' \
-    -m $MORAY_SHARD' + grepForObject + ' \
+    -m $MORAY_SHARD' + grepForObject + ' | \
+  msplit -n ' + opts.numberReducers + ' \
 ');
 }
 /* END JSSTYLED */
@@ -113,12 +114,15 @@ function parseOptions() {
         // command line, and use the defaults if all else fails.
         var opts = MOLA_CONFIG_OBJ;
         opts.shards = opts.shards || [];
-        var parser = new getopt.BasicParser('a:g:m:no:r:t',
+        var parser = new getopt.BasicParser('a:d:g:m:no:p:r:t',
                                             process.argv);
         while ((option = parser.getopt()) !== undefined && !option.error) {
                 switch (option.option) {
                 case 'a':
                         opts.assetFile = option.optarg;
+                        break;
+                case 'd':
+                        opts.marlinReducerDisk = parseInt(option.optarg, 10);
                         break;
                 case 'g':
                         opts.gracePeriodSeconds = parseInt(option.optarg, 10);
@@ -131,6 +135,9 @@ function parseOptions() {
                         break;
                 case 'o':
                         opts.objectId = option.optarg;
+                        break;
+                case 'p':
+                        opts.marlinMapDisk = parseInt(option.optarg, 10);
                         break;
                 case 'r':
                         opts.marlinReducerMemory = parseInt(option.optarg, 10);
@@ -154,7 +161,9 @@ function parseOptions() {
         opts.assetFile = opts.assetFile ||
                 '/opt/smartdc/common/bundle/mola.tar.gz';
 
-        opts.marlinReducerMemory = opts.marlinReducerMemory || 4096;
+        opts.marlinMapDisk = opts.marlinMapDisk || 16;
+        opts.marlinReducerMemory = opts.marlinReducerMemory || 8192;
+        opts.marlinReducerDisk = opts.marlinReducerDisk || 16;
         opts.marlinPathToAsset = opts.assetObject.substring(1);
         opts.marlinAssetObject = opts.assetObject;
 
@@ -287,21 +296,20 @@ function getGcJob(opts, cb) {
         //We use the number of shards + 1 so that we know
         // we are always using multiple reducers.  There's
         // no reason this can't be much more.
-
-        //MANTA-840
-        //var nReducers = opts.shards.length + 1;
-        opts.numberReducers = 1;
+        opts.numberReducers = opts.shards.length + 1;
 
         var pgCmd = getPgTransformCmd(opts);
         var gcCmd = getGcCmd(opts);
         var job = {
                 phases: [ {
                         type: 'storage-map',
-                        exec: pgCmd
+                        exec: pgCmd,
+                        disk: opts.marlinMapDisk
                 }, {
                         type: 'reduce',
                         count: opts.numberReducers,
                         memory: opts.marlinReducerMemory,
+                        disk: opts.marlinReducerDisk
                         exec: gcCmd
                 } ]
         };

@@ -84,7 +84,7 @@ function parseOptions() {
         // command line, and use the defaults if all else fails.
         var opts = MOLA_AUDIT_CONFIG_OBJ;
         opts.shards = opts.shards || [];
-        var parser = new getopt.BasicParser('a:d:m:nr:s:t',
+        var parser = new getopt.BasicParser('a:d:m:np:r:s:t',
                                             process.argv);
         while ((option = parser.getopt()) !== undefined && !option.error) {
                 switch (option.option) {
@@ -99,6 +99,9 @@ function parseOptions() {
                         break;
                 case 'n':
                         opts.noJobStart = true;
+                        break;
+                case 'p':
+                        opts.marlinMapDisk = parseInt(option.optarg, 10);
                         break;
                 case 'r':
                         opts.marlinReducerMemory = parseInt(option.optarg, 10);
@@ -124,6 +127,7 @@ function parseOptions() {
         opts.assetFile = opts.assetFile ||
                 '/opt/smartdc/common/bundle/mola.tar.gz';
 
+        opts.marlinMapDisk = opts.marlinMapDisk || 16;
         opts.marlinReducerMemory = opts.marlinReducerMemory || 4096;
         opts.marlinReducerDisk = opts.marlinReducerDisk || 16;
         opts.marlinPathToAsset = opts.assetObject.substring(1);
@@ -194,11 +198,11 @@ function getAuditJob(opts, cb) {
         var pgCmd = getTransformCmd(opts);
         var auditCmd = getAuditCmd(opts);
 
-
         var job = {
                 phases: [ {
                         type: 'storage-map',
-                        exec: pgCmd
+                        exec: pgCmd,
+                        disk: opts.marlinMapDisk
                 }, {
                         type: 'reduce',
                         count: opts.numberReducers,
