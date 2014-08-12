@@ -309,7 +309,7 @@ function getGcJob(opts, cb) {
                         type: 'reduce',
                         count: opts.numberReducers,
                         memory: opts.marlinReducerMemory,
-                        disk: opts.marlinReducerDisk
+                        disk: opts.marlinReducerDisk,
                         exec: gcCmd
                 } ]
         };
