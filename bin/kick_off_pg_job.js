@@ -33,6 +33,7 @@ var MANTA_USER = MANTA_CLIENT.user;
 
 var MP = '/' + MANTA_USER + '/stor';
 var BACKUP_DIR = MP + '/manatee_backups';
+var MAX_HOURS_IN_PAST = 8;
 
 
 
@@ -189,29 +190,55 @@ function getObjectsInDir(dir, cb) {
 }
 
 
+function pad(n) {
+        return ((n < 10) ? '0' + n : '' + n);
+}
+
+
 //TODO: Use one in common...
 function findLatestBackupObjects(opts, cb) {
         if ((typeof (opts)) === 'string' || opts instanceof String) {
                 opts = {
-                        dir: BACKUP_DIR + '/' + opts
+                        'shard': opts,
+                        'iteration': 0,
+                        'timestamp': new Date().getTime()
                 };
         }
-        assert.string(opts.dir);
+        assert.string(opts.shard, 'opts.shard');
+        assert.number(opts.iteration, 'opts.iteration');
+        assert.number(opts.timestamp, 'opts.timestamp');
 
-        var dir = opts.dir;
+        if (opts.iteration >= MAX_HOURS_IN_PAST) {
+                cb(new Error('Couldnt find objects for ' +
+                             opts.shard + ' in past ' +
+                             opts.iteration + ' hours'));
+                return;
+        }
+
+        var d = new Date(opts.timestamp - (opts.iteration * 60 * 60 * 1000));
+
+        var dir = BACKUP_DIR + '/' +
+                opts.shard + '/' +
+                d.getFullYear() + '/' +
+                pad(d.getMonth() + 1) + '/' +
+                pad(d.getDate()) + '/' +
+                pad(d.getHours());
 
         MANTA_CLIENT.ls(dir, {}, function (err, res) {
-                if (err) {
+                function next() {
+                        opts.iteration += 1;
+                        findLatestBackupObjects(opts, cb);
+                }
+                if (err && err.code !== 'NotFoundError') {
                         cb(err);
                         return;
                 }
+                if (err) {
+                        next();
+                        return;
+                }
 
-                var dirs = [];
                 var objs = [];
-
-                res.on('directory', function (d) {
-                        dirs.push(d.name);
-                });
 
                 res.on('object', function (o) {
                         objs.push(o.name);
@@ -222,18 +249,18 @@ function findLatestBackupObjects(opts, cb) {
                 });
 
                 res.on('end', function () {
-                        //Assume that if there's no further directories to walk
-                        // down, we're done.
-                        if (dirs.length === 0) {
+                        // Dumps are done in 2 phases.  First, the entire DB is
+                        // dumped to 'moray-', then a job transforms that into
+                        // many smaller tables.  So what's here isn't going
+                        // to work all the time, but is good enough for now.
+                        if (objs.length > 1) {
                                 cb(null, {
                                         directory: dir,
                                         objects: objs
                                 });
                                 return;
                         }
-                        dirs.sort(function (a, b) { return (b - a); });
-                        dir += '/' + dirs[0];
-                        findLatestBackupObjects({ dir: dir }, cb);
+                        next();
                 });
         });
 }
