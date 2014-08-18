@@ -16,6 +16,21 @@ source ${DIR}/scripts/services.sh
 
 export PATH=$SVC_ROOT/build/node/bin:/opt/local/bin:/usr/sbin/:/usr/bin:$PATH
 
+function manta_add_mola_bin_to_path {
+    while IFS='' read -r line
+    do
+        if [[ $line == export\ PATH=* ]]
+        then
+            B=$(echo "$line" | cut -d '=' -f 1)
+            E=$(echo "$line" | cut -d '=' -f 2)
+            echo $B=/opt/smartdc/mola/bin:$E
+        else
+            echo "$line"
+        fi
+    done < /root/.bashrc >/root/.bashrc_new
+    mv /root/.bashrc_new /root/.bashrc
+}
+
 function manta_setup_mola {
     local crontab=/tmp/.manta_mola_cron
     crontab -l > $crontab
@@ -125,6 +140,8 @@ manta_ensure_zk
 
 echo "Setting up mola crons"
 manta_setup_mola
+
+manta_add_mola_bin_to_path
 
 manta_setup_rsyslogd
 
