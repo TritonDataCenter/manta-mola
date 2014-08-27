@@ -12,4 +12,4 @@
 	url = git://github.com/joyent/node.git
 [submodule "deps/manta-scripts"]
 	path = deps/manta-scripts
-	url = git@git.joyent.com:manta-scripts.git
+	url = git@github.com:joyent/manta-scripts.git
