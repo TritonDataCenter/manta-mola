@@ -54,7 +54,9 @@ function manta_setup_mola {
     echo '21 13 * * * cd /opt/smartdc/mola && ./build/node/bin/node ./bin/kick_off_audit.js >>/var/log/mola-audit.log 2>&1' >>$crontab
 
     #Metering
-    echo '15 * * * * cd /opt/smartdc/mackerel && ./scripts/cron/meter-previous-hour.sh >>/var/log/mackerel.log 2>&1' >>$crontab
+    echo '15 4 * * * cd /opt/smartdc/mackerel && ./scripts/cron/meter-storage.sh >>/var/log/mackerel.log 2>&1' >>$crontab
+    echo '15 * * * * cd /opt/smartdc/mackerel && ./scripts/cron/meter-request.sh >>/var/log/mackerel.log 2>&1' >>$crontab
+    echo '15 * * * * cd /opt/smartdc/mackerel && ./scripts/cron/meter-compute.sh >>/var/log/mackerel.log 2>&1' >>$crontab
     echo '30 7 * * * cd /opt/smartdc/mackerel && ./scripts/cron/meter-previous-day.sh >>/var/log/mackerel.log 2>&1' >>$crontab
     echo '55 * * * * cd /opt/smartdc/mackerel && ./scripts/format/rep.sh' >>$crontab
     echo '55 7 * * * cd /opt/smartdc/mackerel && ./scripts/format/daily.sh' >>$crontab
