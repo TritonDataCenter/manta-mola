@@ -46,9 +46,11 @@ cron invokes `/opt/smartdc/mola/bin/kick_off_audit.js`, which does a few things:
 1. Verifies that an audit job isn't currently running
 2. Finds the latest Mako dumps, does some verification
 3. Finds the Moray dumps right before the earliest mako dump, does some
-   verification
+   verification (chronologically: moray dumps, as little time as possible, mako
+   dumps).  Since objects go into moray *last* (after mako), we can be sure that
+   all objects in moray are already on makos.
 4. Sets up assets and directories required by audit
-4. Kicks off a marlin job
+5. Kicks off a marlin job
 
 All output for the Marlin job is located under:
 

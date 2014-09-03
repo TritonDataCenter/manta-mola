@@ -20,8 +20,6 @@ tracked in Moray until deleted by the user, then get garbage collected after a
 grace period.  Unfortunately there are failure conditions where a mako object
 would be inadvertently abandoned.  Specifically, here are two:
 
-Here are a couple scenarios where that would be the case:
-
 1. All objects streamed to sharks, moray write fails.
 2. Object is streamed successfully to N - 1 of the N sharks, final shark node
    fails to complete, causes request to fail.
@@ -30,12 +28,15 @@ The above is *not* a complete list.  Objects that are on mako nodes but, for
 some reason or another, aren't and have never been in moray are lovingly
 referred to as "cruft".  While possible that cruft build-up may be a significant
 cost in Manta, accidentally deleting objects that aren't actually dead is not
-worth the cost since we're dealing with a long tail of unknown issues.
+worth the cost of trying to automate cruft cleanup since we're dealing with a
+long tail of unknown issues.
+
+Cruft cleanup should be able to be run on demand by Manta operators.
 
 # Background
 
 Consider this table, which is a representation of where references to an object
-(or the object itself) exists over time:
+(or the object itself) exist over time:
 
 <pre>
 +-----------------------------+------+-------------+------------------+----------------+
@@ -62,8 +63,38 @@ the potential cruft we need to find all objects that:
 1. Exist in the "live" portion of mako (not under /manta/tombstone)
 2. Doesn't exist in Moray, either in the live table or the delete log.
 
-Objects at time 1 and at time 6a will, for a time, be erroneously put in the
-"cruft" bucket, at least until it transitions to the next phase.
+Objects at time 1 could be erroneously put in the "cruft" bucket if we aren't
+careful.  Items at time 6a are to be GCed, so it wouldn't matter if a "cruft"
+job collects them rather than the normal GC processes.
+
+# Design alternatives
+
+The cruft job is looking for objects that exist on the makos but not in the
+morays.  The logical way of selecting which moray and mako dumps to use is to
+first take the entire set of mako dumps, then take the set of moray dumps that
+postdate the latest mako dump.  Since the moray record for an object is written
+after the object is on disk, taking the mako dumps first guarantees that objects
+exist somewhere in the morays or it is cruft.
+
+Alternatively, the mako dumps have the last modified timestamp of the file on
+disk.  Since an object is PUT and only touched for reading and GC, the timestamp
+is the "first create" timestamp.  If we were to take the moray dumps first, we
+could write the cruft job to ignore any mako object that is "newer" than the
+earliest mako dump.
+
+The problem with the latter approach is that until we have the postgres dumps
+writing a manifest for when they started, the current timestamp is when the dump
+*finishes*, so we would need to pad the earliest timestamp to account for the
+time it took for the dump.  To be safe, we could pad by 48 hours.  This would
+collect less cruft, but since this is meant as an operator-run process, the
+operator can run again if the objects in that 48 hour window are "big".
+
+The benefits of the latter approach are:
+
+1. We can reuse the same code that audit uses to identify the dumps to use.
+2. Both moray and mako dumps are moving to a daily cadence.  We'll need to
+   schedule one set of dumps to happen after the other.  We do want the dumps
+   to be as close in time as possible.
 
 # Implementation Details
 
@@ -79,11 +110,11 @@ Objects at time 1 and at time 6a will, for a time, be erroneously put in the
 
     /poseidon/stor/mako/[manta storage id]
 
-The moray dumps should be taken later in time than the mako dumps.  The reason
-is that since we're searching for objects in mako that don't exist in moray,
-we'll get fewer false positives if the moray dumps have the more current
-information.  Doing it this way, we can ignore all objects in the tombstone
-directories.
+To mitigate collecting the "Time 1" objects, we'll filter out any objects from
+the mako dumps which are "new".  "New" is going to be defined as any object that
+was created within 48 hours of the oldest moray dump.  Giving this much time for
+a grace period is probably overkill, but, as explained above, better safe than
+sorry.
 
 ## Marlin job
 
@@ -91,11 +122,11 @@ The cruft job is kicked off from the "ops" zone deployed as part of Manta.  The
 cron invokes `/opt/smartdc/mola/bin/kick_off_cruft.js`, which does a few things:
 
 1. Verifies that a cruft job isn't currently running
-2. Finds the latest Mako dumps, does some verification
-3. Finds the earliest Moray dumps after the latest Mako dumps, does some
-   verification
+2. Finds the latest Moray dumps, does some verification
+3. Finds the Moray dumps right before the earliest mako dump, does some
+   verification (see Design Alternatives above)
 4. Sets up assets and directories required by cruft
-4. Kicks off a marlin job
+5. Kicks off a marlin job
 
 All output for the Marlin job is located under:
 
@@ -104,18 +135,40 @@ All output for the Marlin job is located under:
 From a high-level, the Marlin job does the following:
 
 1. Transforms the Mako dumps into rows that represent which objects actually
-   exist on the mako node, filtering out the tombstone entries.
+   exist on the mako node, filtering out the tombstone entries and entries that
+   are considered too "new" to look at (see above).
 2. Transforms the Moray dumps for tables `manta` and `manta_delete_log` into
    records for each row.  Each manta record is rolled out into several rows that
-   represent the places where Moray expects objects to be.
+   represent the makos where Moray expects objects to be.
 3. The records for each object are then sent off to a number of reducers where a
    reducer is guaranteed to have all records for a given object.
 4. The records for each object are ordered such that the moray record (that the
-   object is in the index tier), followed by all locations that the object
-   exists.  For all places where an object is indexed, but doesn't exist the
-   mako record is written to stdout.
-5. The rows are saved (via `mtee`) on their way to another set of reducers where
-   all the records for each storage node are aggregated into a final number for
-   each storage node.
+   object is in the index tier), followed by all mako locations.  For all places
+   where an object is in moray, but doesn't exist on the mako, the mako record
+   is written to stdout.
+5. The records are split into files for each storage node.
 
-The output of the Marlin job is the number of potential cruft bytes.
+We should also have a tool or marlin job that takes the output from the cruft
+job and outputs the number of objects and aggregate bytes of cruft.
+
+## Cleaning the cruft
+
+The tricky part is verifying that the object no longer exists in moray before
+garbage collecting it.  We also want time to make sure audit passes before the
+entry is deleted.  To that end, we'll hook into "normal" mako GC.  The job is
+the only thing that should be different.  The cruft cleanup will be done from
+the ops zone:
+
+    /opt/smartdc/mola/bin/cruft_gc.js [cruft job id]
+
+Which:
+
+1. Finds all output objects for the given cruft job.
+2. Pulls the output objects down one at a time.
+3. In large moray batches, verifies that the objects no longer exist on each of
+   the mako shards (checks in both the manta and manta delete log).  If it finds
+   an object, we know something is really wrong with the cruft job, and error
+   exit.
+4. Creates a set of links from the cruft job output into the manta_gc mako
+   directories.
+5. Makos will GC objects in those files "normally".
