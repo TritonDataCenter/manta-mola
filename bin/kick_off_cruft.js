@@ -24,16 +24,16 @@ var vasync = require('vasync');
 
 ///--- Global Objects
 
-var NAME = 'mola-audit';
+var NAME = 'mola-crufy';
 var LOG = bunyan.createLogger({
         level: (process.env.LOG_LEVEL || 'info'),
         name: NAME,
         stream: process.stdout
 });
-var MOLA_AUDIT_CONFIG = (process.env.MOLA_AUDIT_CONFIG ||
+var MOLA_CRUFT_CONFIG = (process.env.MOLA_CRUFT_CONFIG ||
                    '/opt/smartdc/mola/etc/config.json');
-var MOLA_AUDIT_CONFIG_OBJ = JSON.parse(fs.readFileSync(MOLA_AUDIT_CONFIG));
-var MANTA_CLIENT = manta.createClientFromFileSync(MOLA_AUDIT_CONFIG, LOG);
+var MOLA_CRUFT_CONFIG_OBJ = JSON.parse(fs.readFileSync(MOLA_CRUFT_CONFIG));
+var MANTA_CLIENT = manta.createClientFromFileSync(MOLA_CRUFT_CONFIG, LOG);
 var MANTA_USER = MANTA_CLIENT.user;
 
 
@@ -44,8 +44,9 @@ var MP = '/' + MANTA_USER + '/stor';
 var MANATEE_BACKUP_DIR = MP + '/manatee_backups';
 var MAKO_BACKUP_DIR = MP + '/mako';
 var MANTA_DUMP_NAME_PREFIX = 'manta-';
+var MANTA_DELETE_LOG_NAME_PREFIX = 'manta_delete_log-';
 var RUNNING_STATE = 'running';
-var MAX_SECONDS_IN_AUDIT_OBJECT = 60 * 60 * 24 * 7; // 7 days
+var TOO_NEW_SECONDS = 60 * 60 * 24 * 2; // 2 days
 
 
 
@@ -55,6 +56,8 @@ var MAX_SECONDS_IN_AUDIT_OBJECT = 60 * 60 * 24 * 7; // 7 days
 function getEnvCommon(opts) {
         return (' \
 set -o pipefail && \
+export MANTA_CRUFT=' + opts.jobName + ' && \
+export MARLIN_JOB=$(echo $MANTA_OUTPUT_BASE | cut -d "/" -f 4) && \
 cd /assets/ && gtar -xzf ' + opts.marlinPathToAsset + ' && cd mola && \
 ');
 }
@@ -64,12 +67,16 @@ cd /assets/ && gtar -xzf ' + opts.marlinPathToAsset + ' && cd mola && \
 /* BEGIN JSSTYLED */
 function getTransformCmd(opts) {
         var grepForStorageNode = '';
+        var filterTimestamp =
+                Math.floor(opts.earliestMorayDump.getTime() / 1000) -
+                TOO_NEW_SECONDS;
         if (opts.mantaStorageId) {
                 grepForStorageNode = ' | grep ' + opts.mantaStorageId + ' | ';
         }
         return (getEnvCommon(opts) + ' \
 gzcat -f | \
-  ./build/node/bin/node ./bin/audit_transform.js -k $MANTA_INPUT_OBJECT \
+  ./build/node/bin/node ./bin/cruft_transform.js -k $MANTA_INPUT_OBJECT \
+    -f ' + filterTimestamp + ' \
     ' + grepForStorageNode + ' | \
   msplit -n ' + opts.numberReducers + ' \
 ');
@@ -78,9 +85,20 @@ gzcat -f | \
 
 
 /* BEGIN JSSTYLED */
-function getAuditCmd(opts) {
+function getCruftCmd(opts) {
+        //We reverse sort here so that the moray lines come first, followed
+        // by the mako lines.  The other way was to insert a useless field
+        // into the map output.
+
+        // Output is (currently):
+        // [object uuid] [mako node] mako [size] [create time]
+        // The demux will split into [job]-[mako node]-[uuid]
         return (getEnvCommon(opts) + ' \
-sort | ./build/node/bin/node ./bin/audit.js \
+export UUID=$(uuid) && \
+export MANTA_PRE=/$MANTA_USER/stor/$MANTA_CRUFT/do && \
+export MANTA_PATTERN=$MANTA_PRE/$MARLIN_JOB-{2}-$UUID && \
+sort -r | ./build/node/bin/node ./bin/cruft.js | \
+  ./build/node/bin/node ./bin/mdemux.js -p $MANTA_PATTERN \
 ');
 }
 /* END JSSTYLED */
@@ -90,7 +108,7 @@ function parseOptions() {
         var option;
         //First take what's in the config file, override what's on the
         // command line, and use the defaults if all else fails.
-        var opts = MOLA_AUDIT_CONFIG_OBJ;
+        var opts = MOLA_CRUFT_CONFIG_OBJ;
         opts.shards = opts.shards || [];
         var parser = new getopt.BasicParser('a:d:m:np:r:s:t',
                                             process.argv);
@@ -118,8 +136,8 @@ function parseOptions() {
                         opts.mantaStorageId = option.optarg;
                         break;
                 case 't':
-                        opts.jobName = 'manta_audit_test';
-                        opts.jobRoot = MP + '/manta_audit_test';
+                        opts.jobName = 'manta_cruft_test';
+                        opts.jobRoot = MP + '/manta_cruft_test';
                         break;
                 default:
                         usage('Unknown option: ' + option.option);
@@ -128,8 +146,8 @@ function parseOptions() {
         }
 
         //Set up some defaults...
-        opts.jobName = opts.jobName || 'manta_audit';
-        opts.jobRoot = opts.jobRoot || MP + '/manta_audit';
+        opts.jobName = opts.jobName || 'manta_cruft';
+        opts.jobRoot = opts.jobRoot || MP + '/manta_cruft';
         opts.assetDir = opts.jobRoot + '/assets';
         opts.assetObject = opts.assetDir + '/mola.tar.gz';
         opts.assetFile = opts.assetFile ||
@@ -140,6 +158,11 @@ function parseOptions() {
         opts.marlinReducerDisk = opts.marlinReducerDisk || 16;
         opts.marlinPathToAsset = opts.assetObject.substring(1);
         opts.marlinAssetObject = opts.assetObject;
+
+        opts.directories = [
+                opts.jobRoot + '/do',
+                opts.jobRoot + '/done'
+        ];
 
         return (opts);
 }
@@ -161,13 +184,11 @@ function usage(msg) {
 }
 
 
-//TODO: Use the one in common
 function startsWith(str, prefix) {
         return (str.slice(0, prefix.length) === prefix);
 }
 
 
-//TODO: Use the one in common
 function endsWith(str, suffix) {
         return (str.indexOf(suffix, str.length - suffix.length) !== -1);
 }
@@ -201,12 +222,12 @@ function getObjectsInDir(dir, cb) {
 }
 
 
-function getAuditJob(opts, cb) {
+function getCruftJob(opts, cb) {
         //Use the same number of reducers as input files.
         opts.numberReducers = opts.objects.length;
 
         var pgCmd = getTransformCmd(opts);
-        var auditCmd = getAuditCmd(opts);
+        var cruftCmd = getCruftCmd(opts);
 
         var job = {
                 phases: [ {
@@ -218,28 +239,24 @@ function getAuditJob(opts, cb) {
                         count: opts.numberReducers,
                         memory: opts.marlinReducerMemory,
                         disk: opts.marlinReducerDisk,
-                        exec: auditCmd
-                }, {
-                        type: 'reduce',
-                        count: 1,
-                        exec: 'cat'
+                        exec: cruftCmd
                 } ]
         };
 
-        LOG.info({ job: job }, 'Audit Marlin Job Definition');
+        LOG.info({ job: job }, 'Cruft Marlin Job Definition');
 
         cb(null, job);
 }
 
 
-function findMorayBackupObject(opts, cb) {
+function findMorayBackupObjects(opts, cb) {
         var shard = opts.shard;
         var earliestMakoDump = opts.earliestMakoDump;
         var offset = (opts.offset === undefined) ? 0 : opts.offset;
 
         if (offset === 7) {
                 LOG.info('Couldn\'t find moray backup for shard ' + shard +
-                         ' within the last 8 hours');
+                         ' for 8 hours before ' + new Date(earliestMakoDump));
                 cb(null);
                 return;
         }
@@ -258,9 +275,10 @@ function findMorayBackupObject(opts, cb) {
                           MANATEE_BACKUP_DIR, shard,
                           d.getUTCFullYear(), d.getUTCMonth() + 1,
                           d.getUTCDate(), d.getUTCHours() + 1);
+
         getObjectsInDir(dir, function (err, objects) {
-                if (err && err.name === 'ResourceNotFoundError') {
-                        findMorayBackupObject({
+                if (err && err.name === 'NotFoundError') {
+                        findMorayBackupObjects({
                                 'shard': shard,
                                 'earliestMakoDump': earliestMakoDump,
                                 'offset': offset + 1
@@ -273,17 +291,23 @@ function findMorayBackupObject(opts, cb) {
                         return;
                 }
 
-                var obj = null;
+                var objs = [];
                 for (var i = 0; i < objects.length; ++i) {
                         var o = objects[i].object;
+                        o.directory = dir;
+                        o.fullPath = o.directory + '/' + o.name;
                         if (startsWith(o.name, MANTA_DUMP_NAME_PREFIX)) {
-                                obj = o;
-                                break;
+                                objs.push(o);
+                        }
+                        if (startsWith(o.name, MANTA_DELETE_LOG_NAME_PREFIX)) {
+                                objs.push(o);
                         }
                 }
 
-                if (obj === null || obj.mtime > earliestMakoDump) {
-                        findMorayBackupObject({
+                if (objs.length != 2 ||
+                    objs[0].mtime > earliestMakoDump ||
+                    objs[1].mtime > earliestMakoDump) {
+                        findMorayBackupObjects({
                                 'shard': shard,
                                 'earliestMakoDump': earliestMakoDump,
                                 'offset': offset + 1
@@ -291,10 +315,7 @@ function findMorayBackupObject(opts, cb) {
                         return;
                 }
 
-                obj.directory = dir;
-                obj.fullPath = obj.directory + '/' + obj.name;
-
-                cb(null, obj);
+                cb(null, objs);
         });
 }
 
@@ -311,7 +332,7 @@ function findMorayObjects(opts, cb) {
         }
 
         vasync.forEachParallel({
-                func: findMorayBackupObject,
+                func: findMorayBackupObjects,
                 inputs: shards.map(function (shard) {
                         return ({
                                 'shard': shard,
@@ -330,18 +351,28 @@ function findMorayObjects(opts, cb) {
                 }
 
                 var objects = [];
+                var earliestMorayDump = null;
                 for (var i = 0; i < shards.length; ++i) {
-                        var obj = results.successes[i];
+                        var objs = results.successes[i];
                         //Ok, this is a little strange.  If we don't find one
                         // of them, then we don't want the job to continue
                         // but we don't want to log FATAL either.  So we
                         // return nothing, and that should give us ^^.
-                        if (obj === null || obj === undefined) {
+                        if (objs === null || objs === undefined ||
+                            objs.length === 0) {
                                 cb(null, []);
                                 return;
                         }
-                        objects.push(obj.fullPath);
+                        objs.forEach(function (o) {
+                                var mtime = new Date(o.mtime);
+                                if (!earliestMorayDump ||
+                                    mtime < earliestMorayDump) {
+                                        earliestMorayDump = mtime;
+                                }
+                                objects.push(o.fullPath);
+                        });
                 }
+                opts.earliestMorayDump = earliestMorayDump;
 
                 cb(null, objects);
         });
@@ -414,7 +445,7 @@ function findObjects(opts, cb) {
 }
 
 
-// TODO: Factor out into common
+//TODO: Use the one in common
 function getObject(objectPath, cb) {
         var res = '';
         MANTA_CLIENT.get(objectPath, {}, function (err, stream) {
@@ -439,69 +470,31 @@ function getObject(objectPath, cb) {
 }
 
 
-function checkJobResults(job, audit, opts, cb) {
-        // If the job was cancelled, we don't want any alarms.
-        if (job.cancelled) {
-                cb(null);
-                return;
-        }
-
-        if (job.stats.errors > 0) {
-                //Log an explicit error to fire an alarm.
-                LOG.error({ jobId: job.id }, 'audit job had errors');
-                cb(null);
-                return;
-        }
-
-        //Find the output
-        var p = '/' + MANTA_CLIENT.user + '/jobs/' + job.id + '/out.txt';
-        getObject(p, function (err, res) {
-                if (err) {
-                        //Don't know if it failed or not, so don't audit.
-                        cb(err);
-                        return;
-                }
-
-                LOG.info({ jobId: job.id, outputs: res },
-                         'Looking at job output.');
-                var parts = res.split('\n');
-                if (parts.length !== 2 && parts[1] !== '') {
-                        LOG.fatal({ jobId: job.id },
-                                  'Job doesn\'t have one output!');
-                        cb(null);
-                        return;
-                }
-
-                getObject(parts[0], function (err2, errorLines) {
-                        if (err2) {
-                                //Don't know if it failed or not.
-                                cb(err2);
-                                return;
-                        }
-                        if (errorLines !== '') {
-                                //Bad juju.
-                                LOG.fatal({
-                                        job: job,
-                                        outputObject: parts[0]
-                                }, 'Audit job detected abnormalities between ' +
-                                          'mako and moray.');
-                        }
-                        cb(null);
-                });
-        });
-}
-
-
 ///--- Main
 
 var _opts = parseOptions();
 
-_opts.getJobDefinition = getAuditJob;
+_opts.getJobDefinition = getCruftJob;
 _opts.getJobObjects = findObjects;
-_opts.preAudit = checkJobResults;
 
-var jobManager = lib.createJobManager(_opts, MANTA_CLIENT, LOG);
-jobManager.run(function () {
-        MANTA_CLIENT.close();
-        LOG.info('Done for now.');
+var _doDir = _opts.jobRoot + '/do';
+getObjectsInDir(_doDir, function (err, objects) {
+        if (err && err.name !== 'NotFoundError') {
+                LOG.fatal(err, 'error fetching do objects');
+                process.exit(1);
+        }
+
+        if (objects && objects.length > 0) {
+                var m = 'Previous job output still exists in ' + _doDir +
+                        '.  All previous output must be cleared before ' +
+                        'a new job can be run.  Exiting...';
+                LOG.info(m);
+                process.exit(1);
+        }
+
+        var jobManager = lib.createJobManager(_opts, MANTA_CLIENT, LOG);
+        jobManager.run(function () {
+                MANTA_CLIENT.close();
+                LOG.info('Done for now.');
+        });
 });

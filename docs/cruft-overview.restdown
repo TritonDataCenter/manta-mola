@@ -83,18 +83,21 @@ could write the cruft job to ignore any mako object that is "newer" than the
 earliest mako dump.
 
 The problem with the latter approach is that until we have the postgres dumps
-writing a manifest for when they started, the current timestamp is when the dump
-*finishes*, so we would need to pad the earliest timestamp to account for the
-time it took for the dump.  To be safe, we could pad by 48 hours.  This would
-collect less cruft, but since this is meant as an operator-run process, the
-operator can run again if the objects in that 48 hour window are "big".
+writing a manifest for when they started, the current timestamp is when the sql
+to json marlin job uploads the transformed tables, not when the dump was
+originally started Since that's the case, we would need to pad the earliest
+timestamp to account for the time it took for the dump and transform.  To be
+safe, we could pad by 48 hours.  This would collect less cruft, but since this
+is meant as an operator-run process, the operator can run again if the objects
+in that 48 hour window are "big".
 
-The benefits of the latter approach are:
-
-1. We can reuse the same code that audit uses to identify the dumps to use.
-2. Both moray and mako dumps are moving to a daily cadence.  We'll need to
-   schedule one set of dumps to happen after the other.  We do want the dumps
-   to be as close in time as possible.
+The reason we have to go with the latter approach is that the moray and mako
+dumps are run on a daily cadence.  We'll need to schedule one set of dumps to
+happen after the other (either moray or mako need to go first).  We do want the
+dumps to be as close in time as possible, so it's not tenable to have moray/mako
+dumps for audit and mako/moray dumps for cruft.  Since Audit is the more
+important job, we want to keep that as is, so we'll need to use the same dumps
+for the cruft job.
 
 # Implementation Details
 

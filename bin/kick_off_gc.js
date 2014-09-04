@@ -219,6 +219,7 @@ function pad(n) {
 }
 
 
+// TODO: Use the one in common
 function findLatestBackupObjects(opts, cb) {
         if ((typeof (opts)) === 'string' || opts instanceof String) {
                 opts = {
