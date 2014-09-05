@@ -349,7 +349,7 @@ function verifyAndLinkFile(opts, cb) {
                         },
                         function checkFile(_, subcb) {
                                 LOG.info({
-                                        'path': path,
+                                        'path': cruft,
                                         'file': file
                                 }, 'Checking objects in file');
                                 verifyObjectsInFile({
