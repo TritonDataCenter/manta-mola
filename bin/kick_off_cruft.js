@@ -24,7 +24,7 @@ var vasync = require('vasync');
 
 ///--- Global Objects
 
-var NAME = 'mola-crufy';
+var NAME = 'mola-cruft';
 var LOG = bunyan.createLogger({
         level: (process.env.LOG_LEVEL || 'info'),
         name: NAME,

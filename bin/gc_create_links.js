@@ -85,16 +85,19 @@ function usage(msg) {
 }
 
 
+//TODO: Use the one in common
 function startsWith(str, prefix) {
         return (str.slice(0, prefix.length) === prefix);
 }
 
 
+//TODO: Use the one in common
 function endsWith(str, suffix) {
         return (str.indexOf(suffix, str.length - suffix.length) !== -1);
 }
 
 
+//TODO: Use the one in common
 function getObject(objectPath, cb) {
         var res = '';
         MANTA_CLIENT.get(objectPath, {}, function (err, stream) {
@@ -120,6 +123,7 @@ function getObject(objectPath, cb) {
 }
 
 
+//TODO: Use the one in common
 function deleteObject(objPath, cb) {
         LOG.info({ objPath: objPath }, 'deleting object');
         ++AUDIT.count;
@@ -129,6 +133,7 @@ function deleteObject(objPath, cb) {
 }
 
 
+//TODO: Use the one in common
 function makeDir(dirPath, cb) {
         LOG.info({ dirPath: dirPath }, 'creating directory');
         MANTA_CLIENT.mkdirp(dirPath, function (err) {
@@ -137,6 +142,7 @@ function makeDir(dirPath, cb) {
 }
 
 
+//TODO: Use the one in common
 function link(linkObj, cb) {
         LOG.info({ linkObj: linkObj }, 'linking object');
         MANTA_CLIENT.ln(linkObj.from, linkObj.to, function (err) {
@@ -145,6 +151,7 @@ function link(linkObj, cb) {
 }
 
 
+//TODO: Use the one in common
 function getObjectsInDir(dir, cb) {
         var objects = [];
         MANTA_CLIENT.ls(dir, {}, function (err, res) {
@@ -228,6 +235,7 @@ function processLinkFile(objPath, cb) {
 }
 
 
+//TODO: Use the one in common
 function findJob(jobId, cb) {
         MANTA_CLIENT.job(jobId, function (err, job) {
                 if (err && err.statusCode !== 404) {
