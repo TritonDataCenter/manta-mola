@@ -58,19 +58,12 @@ function parseOptions() {
         var option;
         var jsonOpts = fs.readFileSync(MOLA_CONFIG);
         var opts = JSON.parse(jsonOpts);
-        var parser = new getopt.BasicParser('hLX',
+        var parser = new getopt.BasicParser('L',
                                             process.argv);
         while ((option = parser.getopt()) !== undefined && !option.error) {
                 switch (option.option) {
-                case 'h':
-                        usage();
-                        process.exit(1);
-                        break; //Makes jsl happy
                 case 'L':
                         opts.noLink = true;
-                        break;
-                case 'X':
-                        opts.noVerify = true;
                         break;
                 default:
                         usage('Unknown option: ' + option.option);
@@ -87,11 +80,7 @@ function usage(msg) {
                 console.error(msg);
         }
         var str  = 'usage: ' + path.basename(process.argv[1]);
-        str += ' [-L don\'t link]';
-        str += ' [-X don\'t verify]\n';
-        str += '\n';
-        str += 'Don\'t use -X unless you\'ve first run with a -L and are\n';
-        str += '*sure* of successful verification.';
+        str += ' [-L verify but don\'t link]';
         console.error(str);
         process.exit(1);
 }
@@ -348,13 +337,6 @@ function verifyAndLinkFile(opts, cb) {
         vasync.pipeline({
                 'funcs': [
                         function getToFile(_, subcb) {
-                                if (opts.noVerify) {
-                                        LOG.info({
-                                                'path': cruft,
-                                                'file': file
-                                        }, 'NOT verifying file');
-                                        return (subcb());
-                                }
                                 LOG.info({
                                         'path': cruft,
                                         'file': file
@@ -366,9 +348,6 @@ function verifyAndLinkFile(opts, cb) {
                                 }, subcb);
                         },
                         function checkFile(_, subcb) {
-                                if (opts.noVerify) {
-                                        return (subcb());
-                                }
                                 LOG.info({
                                         'path': cruft,
                                         'file': file
@@ -388,9 +367,6 @@ function verifyAndLinkFile(opts, cb) {
                                 });
                         },
                         function rmTmpFile(_, subcb) {
-                                if (opts.noVerify) {
-                                        return (subcb());
-                                }
                                 fs.unlink(file, subcb);
                         },
                         function linkFiles(_, subcb) {
