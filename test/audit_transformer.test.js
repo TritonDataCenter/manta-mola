@@ -44,13 +44,11 @@ test('test: tranform mako', function (t) {
                           '>> but got <<' + row.toString() + '>>');
         });
 
-        //wc -l ./data/audit_rt_test/mako_sample
+        //grep -v tombstone ./data/audit_rt_test/mako_sample | wc -l
         pt.once('end', function () {
-                t.ok(count === 71, 'Count was ' + count);
+                t.ok(count === 65, 'Count was ' + count);
                 t.end();
         });
-
-        t.end();
 });
 
 
@@ -85,6 +83,4 @@ test('test: tranform moray', function (t) {
                 t.ok(count === 52, 'Count was ' + count);
                 t.end();
         });
-
-        t.end();
 });

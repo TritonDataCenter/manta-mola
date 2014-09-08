@@ -175,3 +175,55 @@ Which:
 4. Creates a set of links from the cruft job output into the manta_gc mako
    directories.
 5. Makos will GC objects in those files "normally".
+
+# Performing a cruft collection
+
+Note that parts of this process are "expensive", specifically, the verification
+process will verify that an objectid exists on no shard (the manta and
+manta_delete_log tables on all index moray shards) by making batch-gets in
+parallel to each shard.  If your index shards are already close to capacity,
+this could pose a problem for your system.  Be sure to watch the performance
+of your Manta while you run the verification and linking step.
+
+## Running the Marlin Job
+
+First, make sure that all previous cruft files have been cleared out.  The
+command to kick off cruft collection will fail if it detects there are files
+from a previous job that weren't processed or aren't done being processed.  If
+you do find that there are files that were not processed, it is safe to delete
+them since the current cruft run will find any objects that weren't processed on
+a previous run.  The guard is there to try and avoid duplicating work.
+
+To see if there are unprocessed files, log into the Manta ops zone and run:
+
+    $ mfind /poseidon/stor/manta_cruft/do | wc -l
+
+If the output is "0", then you should be ready to go.  Log into the ops zone and
+run the command to find crufty objects:
+
+    $ /opt/smartdc/mola/bin/kick_off_cruft.js | bunyan
+
+Take note of the jobId.  Wait for the job to complete.
+
+## Verifying and Linking cruft files
+
+Once the job has successfully completed, verify the job completed with no errors:
+
+    $ mjob get $JOBID | json stats
+
+If it has completed with no errors, then kick off the verification phase.  The
+verification phase has the potential of running for a "long time", so you may
+want to leave it running in a screen session or background/disown it.  From
+the oops box:
+
+    $ /opt/smartdc/mola/bin/cruft_verify_and_link.js >>cruft_verify.log
+
+You can "watch" the progress of this by tailing the logs or looking at how many
+files are in the "do" directory:
+
+    $ mls /poseidon/stor/manta_cruft/do | wc -l
+
+The cruft files are linked into "regular" mako GC, so you should see the cruft
+objects moved into the daily tombstone.  To purge them completely you can either
+wait for the daily directory to roll off or manually "rm -rf" the tombstone
+directory (though you should be very, very careful when doing the latter).
