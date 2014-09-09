@@ -380,7 +380,7 @@ function findLatestMakoObjects(opts, cb) {
                 var now = new Date().getTime();
                 var eTime = new Date(earliestDump).getTime();
                 if ((now - MAX_MILLIS_MAKO_DUMPS_IN_PAST) > eTime) {
-                        var error = new Error('Earlist mako dumps are too ' +
+                        var error = new Error('Earliest mako dumps are too ' +
                                               ' old: ' + earliestDump);
                         return (cb(error));
                 }
