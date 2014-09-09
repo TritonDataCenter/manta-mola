@@ -209,12 +209,12 @@ Take note of the jobId.  Wait for the job to complete.
 
 Once the job has successfully completed, verify the job completed with no errors:
 
-    $ mjob get $JOBID | json stats
+    $ mjob get $JOBID | json state stats
 
 If it has completed with no errors, then kick off the verification phase.  The
 verification phase has the potential of running for a "long time", so you may
 want to leave it running in a screen session or background/disown it.  From
-the oops box:
+the ops box:
 
     $ /opt/smartdc/mola/bin/cruft_verify_and_link.js >>cruft_verify.log
 

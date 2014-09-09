@@ -45,7 +45,8 @@ var MANATEE_BACKUP_DIR = MP + '/manatee_backups';
 var MAKO_BACKUP_DIR = MP + '/mako';
 var MANTA_DUMP_NAME_PREFIX = 'manta-';
 var RUNNING_STATE = 'running';
-var MAX_SECONDS_IN_AUDIT_OBJECT = 60 * 60 * 24 * 7; // 7 days
+// If the mako dumps are more than 3 days in the past we should fatal.
+var MAX_MILLIS_MAKO_DUMPS_IN_PAST = 1000 * 60 * 60 * 24 * 3; // 3 days
 
 
 
@@ -373,6 +374,15 @@ function findLatestMakoObjects(opts, cb) {
                         cb(new Error('Couldn\'t determine earliest dump from ' +
                                      'mako dumps.'));
                         return;
+                }
+
+                // Mako dumps are too far in the past, then fatal.
+                var now = new Date().getTime();
+                var eTime = new Date(earliestDump).getTime();
+                if ((now - MAX_MILLIS_MAKO_DUMPS_IN_PAST) > eTime) {
+                        var error = new Error('Earlist mako dumps are too ' +
+                                              ' old: ' + earliestDump);
+                        return (cb(error));
                 }
 
                 opts.earliestMakoDump = earliestDump;
