@@ -22,22 +22,30 @@ The Mola Mola, a.k.a "sunfish", a.k.a "a big floating blob"*.
 In Manta-land Mola can be one of two things:
 
 1. The zone from which Manta "system" jobs are managed.
-2. The system of components that takes care of garbage in Manta.
-
-For the purposes of this introduction, Mola will refer to the components that
-audit objects, track cruft and garbage collect.
+2. The system of components that takes care of object reconciliation (garbage
+   collection, object audit, rebalancing, etc.)
 
 # Overview
+
+# Mola, System Jobs
+
+The contents of this repo are joined with Mackerel and work with components
+running on other systems to produce system-wide "crons".  The overview of all
+of these system process can be found here:
+
+[Manta System "Crons"](system-crons.html)
+
+# Mola, Object Reconciliation
 
 There are three main processes that Mola manages (or "is" depending on the way
 you look at it):
 
 1. [Garbage Collection](gc-overview.html)
 2. [Object Auditing](audit-overview.html)
-3. [Potential Cruft Tracking](cruft-overview.html)
+3. [Cruft Tracking and Collection](cruft-overview.html)
 4. [Object Rebalancing](rebalancing-objects.html)
 
-Each of these follow the same pattern for execution:
+Each follow the same pattern for execution:
 
 1. Cron on ops host kicks off node process /opt/smartdc/mola/bin/kick_off_[...]
 2. Node process finds all relevant moray/mako dumps.

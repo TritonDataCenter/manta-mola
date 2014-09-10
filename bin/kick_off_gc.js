@@ -51,7 +51,7 @@ var MANTA_DUMP_NAME_PREFIX = 'manta-';
 var MANTA_DELETE_LOG_DUMP_NAME_PREFIX = 'manta_delete_log-';
 var RUNNING_STATE = 'running';
 var MAX_SECONDS_IN_AUDIT_OBJECT = 60 * 60 * 24 * 7; // 7 days
-var MAX_HOURS_IN_PAST = 8;
+var MAX_HOURS_IN_PAST = 12;
 
 
 

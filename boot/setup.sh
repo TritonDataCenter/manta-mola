@@ -45,28 +45,31 @@ function manta_setup_mola {
     crontab -l > $crontab
     [[ $? -eq 0 ]] || fatal "Unable to write to $crontab"
 
+    #Before you change cron scheduling, please consult the Mola System "Crons"
+    # Overview documentation (manta-mola.git/docs/system-crons)
+
     #Garbage Collection, Audit
     mkdir -p /opt/smartdc/common/bundle
     cd /opt/smartdc && tar -chzf /opt/smartdc/common/bundle/mola.tar.gz mola; cd -
-    echo '10 * * * * cd /opt/smartdc/mola && ./build/node/bin/node ./bin/kick_off_gc.js >>/var/log/mola.log 2>&1' >>$crontab
-    echo '2,17,32,47 * * * * cd /opt/smartdc/mola && ./build/node/bin/node ./bin/gc_create_links.js >>/var/log/mola-gc-create-links.log 2>&1' >>$crontab
-    echo '4,19,34,49 * * * * cd /opt/smartdc/mola && ./build/node/bin/node ./bin/moray_gc.js >>/var/log/mola-moray-gc.log 2>&1' >>$crontab
-    echo '21 13 * * * cd /opt/smartdc/mola && ./build/node/bin/node ./bin/kick_off_audit.js >>/var/log/mola-audit.log 2>&1' >>$crontab
+    echo '5 08 * * * cd /opt/smartdc/mola && ./build/node/bin/node ./bin/kick_off_gc.js >>/var/log/mola.log 2>&1' >>$crontab
+    echo '10 11 * * * cd /opt/smartdc/mola && ./build/node/bin/node ./bin/gc_create_links.js >>/var/log/mola-gc-create-links.log 2>&1' >>$crontab
+    echo '15 12 * * * cd /opt/smartdc/mola && ./build/node/bin/node ./bin/moray_gc.js >>/var/log/mola-moray-gc.log 2>&1' >>$crontab
+    echo '20 14 * * * cd /opt/smartdc/mola && ./build/node/bin/node ./bin/kick_off_audit.js >>/var/log/mola-audit.log 2>&1' >>$crontab
 
     #Metering
-    echo '15 4 * * * cd /opt/smartdc/mackerel && ./scripts/cron/meter-storage.sh >>/var/log/mackerel.log 2>&1' >>$crontab
+    echo '15 08 * * * cd /opt/smartdc/mackerel && ./scripts/cron/meter-storage.sh >>/var/log/mackerel.log 2>&1' >>$crontab
     echo '15 * * * * cd /opt/smartdc/mackerel && ./scripts/cron/meter-request.sh >>/var/log/mackerel.log 2>&1' >>$crontab
     echo '15 * * * * cd /opt/smartdc/mackerel && ./scripts/cron/meter-compute.sh >>/var/log/mackerel.log 2>&1' >>$crontab
-    echo '30 7 * * * cd /opt/smartdc/mackerel && ./scripts/cron/meter-previous-day.sh >>/var/log/mackerel.log 2>&1' >>$crontab
+    echo '30 14 * * * cd /opt/smartdc/mackerel && ./scripts/cron/meter-previous-day.sh >>/var/log/mackerel.log 2>&1' >>$crontab
     echo '55 * * * * cd /opt/smartdc/mackerel && ./scripts/format/rep.sh' >>$crontab
-    echo '55 7 * * * cd /opt/smartdc/mackerel && ./scripts/format/daily.sh' >>$crontab
+    echo '55 14 * * * cd /opt/smartdc/mackerel && ./scripts/format/daily.sh' >>$crontab
     gsed -i -e "s|REDIS_HOST|$(mdata-get auth_cache_name)|g" /opt/smartdc/mackerel/etc/config.js
 
     #Process postgres dumps
     mmkdir -p ~~/stor/pgdump/assets
     mput -f /opt/smartdc/mackerel/scripts/pg_process/process_dump.sh ~~/stor/pgdump/assets/process_dump.sh
     mput -f /opt/smartdc/mackerel/scripts/pg_process/postgresql.conf ~~/stor/pgdump/assets/postgresql.conf
-    echo '0 * * * * /opt/smartdc/mackerel/scripts/pg_process/start-job.sh >> /var/log/pg_process.log 2>&1' >>$crontab
+    echo '0 2 * * * /opt/smartdc/mackerel/scripts/pg_process/start-job.sh >> /var/log/pg_process.log 2>&1' >>$crontab
 
     crontab $crontab
     [[ $? -eq 0 ]] || fatal "Unable import crons"

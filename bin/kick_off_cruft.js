@@ -47,6 +47,10 @@ var MANTA_DUMP_NAME_PREFIX = 'manta-';
 var MANTA_DELETE_LOG_NAME_PREFIX = 'manta_delete_log-';
 var RUNNING_STATE = 'running';
 var TOO_NEW_SECONDS = 60 * 60 * 24 * 2; // 2 days
+// If the mako dumps are more than 3 days in the past we should fatal.
+var MAX_MILLIS_MAKO_DUMPS_IN_PAST = 1000 * 60 * 60 * 24 * 3; // 3 days
+// We shouldn't take moray dumps that are way way in the past.
+var MAX_HOURS_MORAYS_BEFORE_MAKOS = 12;
 
 
 
@@ -249,14 +253,16 @@ function getCruftJob(opts, cb) {
 }
 
 
+//TODO: Use something in common, please.
 function findMorayBackupObjects(opts, cb) {
         var shard = opts.shard;
         var earliestMakoDump = opts.earliestMakoDump;
         var offset = (opts.offset === undefined) ? 0 : opts.offset;
 
-        if (offset === 7) {
+        if (offset === MAX_HOURS_MORAYS_BEFORE_MAKOS - 1) {
                 LOG.info('Couldn\'t find moray backup for shard ' + shard +
-                         ' for 8 hours before ' + new Date(earliestMakoDump));
+                         ' for ' + MAX_HOURS_MORAYS_BEFORE_MAKOS +
+                         ' hours before ' + new Date(earliestMakoDump));
                 cb(null);
                 return;
         }
@@ -379,6 +385,7 @@ function findMorayObjects(opts, cb) {
 }
 
 
+//TODO: Common, please!
 function findLatestMakoObjects(opts, cb) {
         getObjectsInDir(MAKO_BACKUP_DIR, function (err, objects) {
                 if (err && err.name === 'ResourceNotFoundError') {
@@ -404,6 +411,15 @@ function findLatestMakoObjects(opts, cb) {
                         cb(new Error('Couldn\'t determine earliest dump from ' +
                                      'mako dumps.'));
                         return;
+                }
+
+                // Mako dumps are too far in the past, then fatal.
+                var now = new Date().getTime();
+                var eTime = new Date(earliestDump).getTime();
+                if ((now - MAX_MILLIS_MAKO_DUMPS_IN_PAST) > eTime) {
+                        var error = new Error('Earliest mako dumps are too ' +
+                                              ' old: ' + earliestDump);
+                        return (cb(error));
                 }
 
                 opts.earliestMakoDump = earliestDump;
