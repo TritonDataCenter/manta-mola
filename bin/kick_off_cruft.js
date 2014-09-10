@@ -280,7 +280,7 @@ function findMorayBackupObjects(opts, cb) {
         var dir = sprintf('%s/%s/%04d/%02d/%02d/%02d',
                           MANATEE_BACKUP_DIR, shard,
                           d.getUTCFullYear(), d.getUTCMonth() + 1,
-                          d.getUTCDate(), d.getUTCHours() + 1);
+                          d.getUTCDate(), d.getUTCHours());
 
         getObjectsInDir(dir, function (err, objects) {
                 if (err && err.name === 'NotFoundError') {
@@ -388,7 +388,8 @@ function findMorayObjects(opts, cb) {
 //TODO: Common, please!
 function findLatestMakoObjects(opts, cb) {
         getObjectsInDir(MAKO_BACKUP_DIR, function (err, objects) {
-                if (err && err.name === 'ResourceNotFoundError') {
+                if (err && (err.name === 'ResourceNotFoundError' ||
+                            err.name === 'NotFoundError')) {
                         LOG.info('No Mako Objects found');
                         cb(null, []);
                         return;
