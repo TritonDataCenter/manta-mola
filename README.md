@@ -8,16 +8,11 @@
     Copyright (c) 2014, Joyent, Inc.
 -->
 
-# Mola
+# manta-mola
 
-Repository: <git@git.joyent.com:mola.git>
-Browsing: <https://mo.joyent.com/mola>
-Who: Nate Fitch
-Docs: <https://mo.joyent.com/docs/mola>
-Tickets/bugs: <https://devhub.joyent.com/jira/browse/MANTA>
-
-
-# Overview
+This repository is part of the Joyent Manta project.  For contribution
+guidelines, issues, and general documentation, visit the main
+[Manta](http://github.com/joyent/manta) project page.
 
 Mola is one of two things:
 
@@ -30,6 +25,8 @@ This package contains the source code for #2.
 
 # Repository
 
+    bin/            Commands available in $PATH.
+    boot/           Configuration scripts on zone setup.
     data/           Garbage collection data samples, used for testing.
     deps/           Git submodules and/or commited 3rd-party deps should go
                     here. See "node_modules/" for node.js deps.
@@ -37,7 +34,7 @@ This package contains the source code for #2.
     lib/            Source files.
     node_modules/   Node.js deps, either populated at build time or commited.
                     See Managing Dependencies.
-    pkg/            Package lifecycle scripts
+    sapi_manifests/ SAPI manifests for zone configuration.
     test/           Test suite (using node-tap)
     tools/          Miscellaneous dev/upgrade/deployment tools and data.
     Makefile
@@ -50,7 +47,7 @@ This package contains the source code for #2.
 
 To check out and run the tests:
 
-    git clone git@git.joyent.com:mola.git
+    git clone git@github.com:joyent/manta-mola.git
     cd mola
     make all
     make test

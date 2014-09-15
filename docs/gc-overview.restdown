@@ -27,8 +27,8 @@ Since Moray is actually composed of many shards, each responsible for a slice of
 live objects and that references to the files in Mako can exist on any of the
 shards, all must be consulted.  Due to the nature of distributed systems, all
 cannot be consulted at the same instant in time.  Due to this limitation,
-garbage collection is implemented as a job post-processing the set of Moray
-shards.
+garbage collection is implemented as a Manta job, post-processing the set of
+Moray shard data dumps.
 
 # Implementation Details
 
@@ -111,12 +111,14 @@ A cron runs on each Mako node that periodically looks in:
 
     /poseidon/stor/manta_gc/mako/[zoneid]/
 
-Downloads them and processes each line to delete objects off the local disk.  The
-executable is located in `mako/bin/mako_gc.sh`.
+Downloads them and processes each line to tombstone objects.  The executable is
+located in `mako/bin/mako_gc.sh`.
+
+Objects are moved to a daily tombstone directory.  These directories are purged
+after some number of days.  This final grace period allows operators to find and
+restore data that has been accidentally deleted.  Once a tombstone directory has
+been deleted, there is little to no chance of data recovery.
 
 # See Also
 
 * [Design Alternatives](gc-design-alternatives.html): Alternative designs we considered for Garbage Collection.
-* [MANTA-196](https://devhub.joyent.com/jira/browse/MANTA-196): Jira item tracking GC.
-* [Trello Manta GC](https://trello.com/board/manta-gc-manta-196/50579504776452b54f1c7587): Trello board tracking progress.
-
