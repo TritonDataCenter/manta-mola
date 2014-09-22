@@ -1,6 +1,6 @@
 ---
 title: Mola Audit Overview
-markdown2extras: wiki-tables, code-friendly
+markdown2extras: tables, code-friendly, fenced-code-blocks
 apisections:
 ---
 <!--
@@ -80,7 +80,7 @@ Records for objects only exist in two places that matter: the index (moray) and
 the the object store (mako).  The write order for these records are well
 defined:
 
-<pre>
+```
 +-----------------------------+------+-------------+------------------+----------------+
 | Time                        | Mako | Moray.manta | Moray.delete_log | Mako.tombstone |
 +-----------------------------+------+-------------+------------------+----------------+
@@ -95,7 +95,7 @@ defined:
 | 7. Grace period             |      |             |                  | x              |
 | 8. Purge                    |      |             |                  |                |
 +-----------------------------+------+-------------+------------------+----------------+
-</pre>
+```
 
 What this table shows is that the writes to Moray.manta are always sandwiched by
 the object existing on the mako node.  This is why it is correct to assume

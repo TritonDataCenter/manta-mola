@@ -1,6 +1,6 @@
 ---
 title: Mola Cruft Overview
-markdown2extras: wiki-tables, code-friendly
+markdown2extras: tables, code-friendly, fenced-code-blocks
 apisections:
 ---
 <!--
@@ -38,7 +38,7 @@ Cruft cleanup should be able to be run on demand by Manta operators.
 Consider this table, which is a representation of where references to an object
 (or the object itself) exist over time:
 
-<pre>
+```
 +-----------------------------+------+-------------+------------------+----------------+
 | Time                        | Mako | Moray.manta | Moray.delete_log | Mako.tombstone |
 +-----------------------------+------+-------------+------------------+----------------+
@@ -53,7 +53,7 @@ Consider this table, which is a representation of where references to an object
 | 7. Grace period             |      |             |                  | x              |
 | 8. Purge                    |      |             |                  |                |
 +-----------------------------+------+-------------+------------------+----------------+
-</pre>
+```
 
 The object at time 1 is "potential cruft" since it cannot be distinguished from
 an object in state 6a.  The object from 2-4 is a "live" object.  Data that we
