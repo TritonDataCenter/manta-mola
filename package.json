@@ -6,10 +6,12 @@
         "license": "MPL-2.0",
         "private": true,
         "dependencies": {
-                "assert-plus": "0.1.1",
+                "assert-plus": "0.1.4",
                 "bunyan": "0.21.4",
                 "carrier": "0.1.7",
+                "dashdash": "1.7.0",
                 "hist": "1.0.0",
+                "lstream": "0.0.4",
                 "marlin": "git+ssh://git@github.com:joyent/manta-marlin.git#master",
                 "memorystream": "0.2.0",
                 "node-manta": "git+ssh://git@github.com:joyent/node-manta.git#master",
