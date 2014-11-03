@@ -1,14 +1,14 @@
 {
         "name": "mola",
-        "description": "Manta Garbage Collection",
+        "description": "Manta Garbage Collection, Audit, etc",
         "version": "1.0.0",
         "author": "Joyent (joyent.com)",
         "license": "MPL-2.0",
         "private": true,
         "dependencies": {
-                "assert-plus": "0.1.4",
-                "bunyan": "0.21.4",
-                "carrier": "0.1.7",
+                "assert-plus": "0.1.5",
+                "bunyan": "1.2.1",
+                "carrier": "0.1.14",
                 "dashdash": "1.7.0",
                 "hist": "1.0.0",
                 "lstream": "0.0.4",
@@ -19,15 +19,14 @@
                 "moray": "git+ssh://git@github.com:joyent/node-moray.git#master",
                 "posix-getopt": "1.0.0",
                 "sprintf-js": "0.0.7",
-                "vasync": "1.5.1"
+                "vasync": "1.6.1"
         },
         "devDependencies": {
                 "nodeunit": "0.7.4"
         },
         "engines": {
-                "node": "0.8.18"
+                "node": "0.10.32"
         },
         "scripts": {
-                "start": "node ./server.js"
         }
 }
