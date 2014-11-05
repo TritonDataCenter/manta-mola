@@ -12,6 +12,7 @@ var bunyan = require('bunyan');
 var fs = require('fs');
 var LineStream = require('lstream');
 var manta = require('manta');
+var once = require('once');
 var path = require('path');
 var zlib = require('zlib');
 var dashdash = require('dashdash');
@@ -166,10 +167,12 @@ function getInputDate() {
 }
 
 
-function save(opts, stream, table) {
+function save(opts, stream, table, cb) {
         var chain, zstream, fstream, mstream;
         var localPath = opts.local + '/' + table + opts.suffix;
         var mPath = opts.remote + '/' + table + opts.suffix;
+
+        cb = once(cb);
 
         if (!opts.uncompressed) {
                 zstream = zlib.createGzip();
@@ -195,20 +198,22 @@ function save(opts, stream, table) {
                                         var s = fs.createReadStream(localPath);
                                         var p = mPath;
                                         s.pause();
-                                        function done(err2) {
-                                                if (err2) {
-                                                        throw (err2);
-                                                }
-                                        }
                                         s.on('open', function () {
-                                                opts.manta.put(p, s, o, done);
+                                                opts.manta.put(p, s, o, cb);
                                         });
                                 });
                         });
                 } else {
                         mstream = opts.manta.createWriteStream(mPath);
                         chain.pipe(mstream);
+                        mstream.once('finish', cb);
                 }
+        } else if (fstream) {
+                fstream.once('finish', cb);
+        } else if (chain) {
+                chain.once('finish', cb);
+        } else {
+                stream.once('finish', cb);
         }
 }
 
@@ -225,8 +230,25 @@ function main() {
         var tabledemux = new TableDemux();
         var source = opts.file ? fs.createReadStream(opts.file) : process.stdin;
 
+        var outstandingSaves = 0;
+        var demuxDone = false;
+        function tryEnd() {
+                if (outstandingSaves === 0 && demuxDone) {
+                        opts.manta.close();
+                }
+        }
+
         tabledemux.on('stream', function (stream, table) {
-                save(opts, stream, table);
+                ++outstandingSaves;
+                save(opts, stream, table, function (err) {
+                        --outstandingSaves;
+                        tryEnd();
+                });
+        });
+
+        tabledemux.on('finish', function () {
+                demuxDone = true;
+                tryEnd();
         });
 
         // stop streaming if we found all the tables we care about
