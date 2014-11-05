@@ -10,7 +10,6 @@
  * Copyright (c) 2014, Joyent, Inc.
  */
 
-var assert = require('assert-plus');
 var bunyan = require('bunyan');
 var common = require('../lib/common');
 var fs = require('fs');
@@ -250,18 +249,12 @@ function getRebalanceJob(opts, cb) {
 
 
 function findObjects(opts, cb) {
-        common.findTablesForShards({
-                mantaUser: MANTA_USER,
-                mantaClient: MANTA_CLIENT,
-                shards: opts.shards,
-                tablePrefixes: [ MANTA_DUMP_NAME_PREFIX ]
-        }, function (err, objs) {
-                if (err) {
-                        cb(err);
-                        return;
-                }
-                cb(null, objs);
-        });
+        common.findObjectsForShards({
+                'log': LOG,
+                'shards': opts.shards,
+                'client': MANTA_CLIENT,
+                'tablePrefixes': [ MANTA_DUMP_NAME_PREFIX ]
+        }, cb);
 }
 
 

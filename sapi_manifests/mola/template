@@ -1,5 +1,6 @@
 {
     "assetFile": "/opt/smartdc/common/bundle/mola.tar.gz",
+    "marlinShard": "{{MARLIN_MORAY_SHARD}}",
     "storageShard": "{{STORAGE_MORAY_SHARD}}",
     "shards": [
          {{#INDEX_MORAY_SHARDS}}

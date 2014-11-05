@@ -13,6 +13,7 @@
 var assert = require('assert-plus');
 var bunyan = require('bunyan');
 var carrier = require('carrier');
+var common = require('../lib').common;
 var fs = require('fs');
 var getopt = require('posix-getopt');
 var manta = require('manta');
@@ -83,70 +84,6 @@ function usage(msg) {
         str += ' [-L verify but don\'t link]';
         console.error(str);
         process.exit(1);
-}
-
-
-//TODO: Use the one in common
-function deleteObject(objPath, cb) {
-        LOG.info({ objPath: objPath }, 'deleting object');
-        ++AUDIT.count;
-        MANTA_CLIENT.unlink(objPath, function (err) {
-                return (cb(err));
-        });
-}
-
-
-//TODO: Use the one in common
-function link(linkObj, cb) {
-        LOG.info({ linkObj: linkObj }, 'linking object');
-        MANTA_CLIENT.ln(linkObj.from, linkObj.to, function (err) {
-                return (cb(err));
-        });
-}
-
-
-//TODO: Use the one in common
-function getObjectsInDir(dir, cb) {
-        var objects = [];
-        MANTA_CLIENT.ls(dir, {}, function (err, res) {
-                if (err) {
-                        cb(err);
-                        return;
-                }
-
-                res.on('object', function (obj) {
-                        objects.push(dir + '/' + obj.name);
-                });
-
-                res.once('error', function (err2) {
-                        cb(err2);
-                });
-
-                res.once('end', function () {
-                        cb(null, objects);
-                });
-        });
-}
-
-
-//TODO: Use the one in common
-function getObjectToFile(opts, cb) {
-        assert.object(opts, 'opts');
-        assert.object(opts.client, 'opts.client');
-        assert.string(opts.file, 'opts.file');
-        assert.string(opts.path, 'opts.path');
-
-        var out = fs.createWriteStream(opts.file);
-        out.on('open', function () {
-                opts.client.get(opts.path, function (err, stream, res) {
-                        if (err) {
-                                return (cb(err));
-                        }
-
-                        stream.pipe(out);
-                        stream.on('end', cb);
-                });
-        });
 }
 
 
@@ -341,7 +278,7 @@ function verifyAndLinkFile(opts, cb) {
                                         'path': cruft,
                                         'file': file
                                 }, 'downloading cruft file');
-                                getObjectToFile({
+                                common.getObjectToFile({
                                         'client': MANTA_CLIENT,
                                         'file': file,
                                         'path': cruft
@@ -431,7 +368,11 @@ function createMorayClients(_, cb) {
 
 
 function findDoObjects(_, cb) {
-        getObjectsInDir(MANTA_DO_DIR, function (err, objs) {
+        var opts = {
+                'client': MANTA_CLIENT,
+                'dir': MANTA_DO_DIR
+        };
+        common.getObjectsInDir(opts, function (err, objs) {
                 if (err) {
                         return (cb(err));
                 }

@@ -184,8 +184,26 @@ function save(opts, stream, table) {
         if (!opts.noUpload) {
                 if (fstream) {
                         fstream.once('finish', function onDisk() {
-                                mstream = opts.manta.createWriteStream(mPath);
-                                fs.createReadStream(localPath).pipe(mstream);
+                                fs.stat(localPath, function (err, stats) {
+                                        if (err) {
+                                                throw (err);
+                                        }
+                                        var o = {
+                                                copies: 2,
+                                                size: stats.size
+                                        };
+                                        var s = fs.createReadStream(localPath);
+                                        var p = mPath;
+                                        s.pause();
+                                        function done(err2) {
+                                                if (err2) {
+                                                        throw (err2);
+                                                }
+                                        }
+                                        s.on('open', function () {
+                                                opts.manta.put(p, s, o, done);
+                                        });
+                                });
                         });
                 } else {
                         mstream = opts.manta.createWriteStream(mPath);

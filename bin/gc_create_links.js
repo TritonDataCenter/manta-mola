@@ -12,6 +12,7 @@
 
 var assert = require('assert-plus');
 var bunyan = require('bunyan');
+var common = require('../lib').common;
 var fs = require('fs');
 var getopt = require('posix-getopt');
 var manta = require('manta');
@@ -85,45 +86,6 @@ function usage(msg) {
 }
 
 
-//TODO: Use the one in common
-function startsWith(str, prefix) {
-        return (str.slice(0, prefix.length) === prefix);
-}
-
-
-//TODO: Use the one in common
-function endsWith(str, suffix) {
-        return (str.indexOf(suffix, str.length - suffix.length) !== -1);
-}
-
-
-//TODO: Use the one in common
-function getObject(objectPath, cb) {
-        var res = '';
-        MANTA_CLIENT.get(objectPath, {}, function (err, stream) {
-                if (err) {
-                        cb(err);
-                        return;
-                }
-
-                stream.on('error', function (err1) {
-                        cb(err1);
-                        return;
-                });
-
-                stream.on('data', function (data) {
-                        res += data;
-                });
-
-                stream.on('end', function () {
-                        cb(null, res);
-                        return;
-                });
-        });
-}
-
-
-//TODO: Use the one in common
 function deleteObject(objPath, cb) {
         LOG.info({ objPath: objPath }, 'deleting object');
         ++AUDIT.count;
@@ -133,51 +95,13 @@ function deleteObject(objPath, cb) {
 }
 
 
-//TODO: Use the one in common
-function makeDir(dirPath, cb) {
-        LOG.info({ dirPath: dirPath }, 'creating directory');
-        MANTA_CLIENT.mkdirp(dirPath, function (err) {
-                return (cb(err));
-        });
-}
-
-
-//TODO: Use the one in common
-function link(linkObj, cb) {
-        LOG.info({ linkObj: linkObj }, 'linking object');
-        MANTA_CLIENT.ln(linkObj.from, linkObj.to, function (err) {
-                return (cb(err));
-        });
-}
-
-
-//TODO: Use the one in common
-function getObjectsInDir(dir, cb) {
-        var objects = [];
-        MANTA_CLIENT.ls(dir, {}, function (err, res) {
-                if (err) {
-                        cb(err);
-                        return;
-                }
-
-                res.on('object', function (obj) {
-                        objects.push(dir + '/' + obj.name);
-                });
-
-                res.once('error', function (err2) {
-                        cb(err2);
-                });
-
-                res.once('end', function () {
-                        cb(null, objects);
-                });
-        });
-}
-
-
 function processLinkFile(objPath, cb) {
         LOG.info({ objPath: objPath }, 'processing object');
-        getObject(objPath, function (err, data) {
+        var opts = {
+                'path': objPath,
+                'client': MANTA_CLIENT
+        };
+        common.getObject(opts, function (err, data) {
                 if (err) {
                         cb(err);
                         return;
@@ -192,9 +116,9 @@ function processLinkFile(objPath, cb) {
                                 continue;
                         }
                         var parts = line.split(' ');
-                        if (startsWith(line, 'mmkdir')) {
+                        if (common.startsWith(line, 'mmkdir')) {
                                 dirs.push(parts[1]);
-                        } else if (startsWith(line, 'mln')) {
+                        } else if (common.startsWith(line, 'mln')) {
                                 links.push({
                                         from: parts[1],
                                         to: parts[2]
@@ -211,7 +135,7 @@ function processLinkFile(objPath, cb) {
 
                 //Create dirs, then link, then delete.
                 vasync.forEachParallel({
-                        func: makeDir,
+                        func: MANTA_CLIENT.mkdirp.bind(MANTA_CLIENT),
                         inputs: dirs
                 }, function (err2, results) {
                         if (err2) {
@@ -220,7 +144,12 @@ function processLinkFile(objPath, cb) {
                         }
 
                         vasync.forEachParallel({
-                                func: link,
+                                func: function link(linkObj, subcb) {
+                                        LOG.info({ linkObj: linkObj },
+                                                 'linking object');
+                                        MANTA_CLIENT.ln(linkObj.from,
+                                                        linkObj.to, subcb);
+                                },
                                 inputs: links
                         }, function (err3, results2) {
                                 if (err3) {
@@ -230,33 +159,6 @@ function processLinkFile(objPath, cb) {
 
                                 deleteObject(objPath, cb);
                         });
-                });
-        });
-}
-
-
-//TODO: Use the one in common
-function findJob(jobId, cb) {
-        MANTA_CLIENT.job(jobId, function (err, job) {
-                if (err && err.statusCode !== 404) {
-                        cb(err);
-                        return;
-                }
-
-                if (!err) {
-                        cb(null, job);
-                        return;
-                }
-
-                var p = '/' + MANTA_USER + '/jobs/' + jobId + '/job.json';
-                getObject(p, function (err2, data) {
-                        if (err2) {
-                                cb(err2);
-                                return;
-                        }
-
-                        cb(null, JSON.parse(data));
-                        return;
                 });
         });
 }
@@ -273,7 +175,11 @@ function findAndVerifyJob(objPath, cb) {
         var objName = path.basename(objPath);
         var dateJobId = objName.split('-X-')[0];
         var jobId = dateJobId.substring(20);
-        findJob(jobId, function (err, job) {
+        var opts = {
+                'client': MANTA_CLIENT,
+                'jobId': jobId
+        };
+        common.getJob(opts, function (err, job) {
                 if (err) {
                         cb(err);
                         return;
@@ -305,7 +211,11 @@ function findAndVerifyJob(objPath, cb) {
 
 
 function createGcLinks(opts, cb) {
-        getObjectsInDir(opts.mantaDir, function (err, objs) {
+        var gopts = {
+                'client': MANTA_CLIENT,
+                'dir': opts.mantaDir
+        };
+        common.getObjectsInDir(gopts, function (err, objs) {
                 if (err && err.code === 'ResourceNotFound') {
                         LOG.info('GC not ready yet: ' + opts.mantaDir +
                                  ' doesn\'t exist');

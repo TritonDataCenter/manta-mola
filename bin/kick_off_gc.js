@@ -10,14 +10,12 @@
  * Copyright (c) 2014, Joyent, Inc.
  */
 
-var assert = require('assert-plus');
 var bunyan = require('bunyan');
 var fs = require('fs');
 var getopt = require('posix-getopt');
 var lib = require('../lib');
 var manta = require('manta');
 var path = require('path');
-var vasync = require('vasync');
 
 
 
@@ -46,12 +44,8 @@ var AUDIT = {
 ///--- Global Constants
 
 var MP = '/' + MANTA_USER + '/stor';
-var BACKUP_DIR = MP + '/manatee_backups';
 var MANTA_DUMP_NAME_PREFIX = 'manta-';
 var MANTA_DELETE_LOG_DUMP_NAME_PREFIX = 'manta_delete_log-';
-var RUNNING_STATE = 'running';
-var MAX_SECONDS_IN_AUDIT_OBJECT = 60 * 60 * 24 * 7; // 7 days
-var MAX_HOURS_IN_PAST = 12;
 
 
 
@@ -169,7 +163,7 @@ function parseOptions() {
         opts.assetFile = opts.assetFile ||
                 '/opt/smartdc/common/bundle/mola.tar.gz';
 
-        opts.marlinMapDisk = opts.marlinMapDisk || 16;
+        opts.marlinMapDisk = opts.marlinMapDisk || 32;
         opts.marlinReducerMemory = opts.marlinReducerMemory || 8192;
         opts.marlinReducerDisk = opts.marlinReducerDisk || 16;
         opts.marlinPathToAsset = opts.assetObject.substring(1);
@@ -204,102 +198,6 @@ function usage(msg) {
 }
 
 
-function startsWith(str, prefix) {
-        return (str.slice(0, prefix.length) === prefix);
-}
-
-
-function endsWith(str, suffix) {
-        return (str.indexOf(suffix, str.length - suffix.length) !== -1);
-}
-
-
-function pad(n) {
-        return ((n < 10) ? '0' + n : '' + n);
-}
-
-
-// TODO: Use the one in common
-function findLatestBackupObjects(opts, cb) {
-        if ((typeof (opts)) === 'string' || opts instanceof String) {
-                opts = {
-                        'shard': opts,
-                        'iteration': 0,
-                        'timestamp': new Date().getTime()
-                };
-        }
-        assert.string(opts.shard, 'opts.shard');
-        assert.number(opts.iteration, 'opts.iteration');
-        assert.number(opts.timestamp, 'opts.timestamp');
-
-        // Kick out here
-        if (opts.iteration >= MAX_HOURS_IN_PAST) {
-                cb(new Error('Couldnt find objects for ' +
-                             opts.shard + ' in past ' +
-                             opts.iteration + ' hours'));
-                return;
-        }
-
-        // # of iteration hours before
-        var d = new Date(opts.timestamp - (opts.iteration * 60 * 60 * 1000));
-
-        // Construct a path like:
-        // /poseidon/stor/manatee_backups/1.moray.coal.joyent.us/2014/05/04/20
-        var dir = BACKUP_DIR + '/' +
-                opts.shard + '/' +
-                d.getFullYear() + '/' +
-                pad(d.getMonth() + 1) + '/' +
-                pad(d.getDate()) + '/' +
-                pad(d.getHours());
-
-        MANTA_CLIENT.ls(dir, {}, function (err, res) {
-                function next() {
-                        opts.iteration += 1;
-                        findLatestBackupObjects(opts, cb);
-                }
-                if (err && err.code !== 'NotFoundError') {
-                        cb(err);
-                        return;
-                }
-                if (err) {
-                        next();
-                        return;
-                }
-
-                var objs = [];
-
-                res.on('object', function (o) {
-                        objs.push(o.name);
-                });
-
-                res.on('error', function (err2) {
-                        cb(err2);
-                });
-
-                res.on('end', function () {
-                        var foundManta = false;
-                        var foundDeleteLog = false;
-                        objs.forEach(function (o) {
-                                if (startsWith(o, MANTA_DUMP_NAME_PREFIX)) {
-                                        foundManta = true;
-                                }
-                                var mdlp = MANTA_DELETE_LOG_DUMP_NAME_PREFIX;
-                                if (startsWith(o, mdlp)) {
-                                        foundDeleteLog = true;
-                                }
-                        });
-                        if (foundManta && foundDeleteLog) {
-                                cb(null, {
-                                        directory: dir,
-                                        objects: objs
-                                });
-                                return;
-                        }
-                        next();
-                });
-        });
-}
-
 
 function getGcJob(opts, cb) {
         //We use the number of shards + 1 so that we know
@@ -330,9 +228,11 @@ function getGcJob(opts, cb) {
 
 
 //Expects the filename to be in the format:
-// manta-2012-11-30-23-00-07.gz
-function extractDate(prefix, filename) {
-        var d = filename.replace(prefix, '');
+// /.../manta-2012-11-30-23-00-07.gz
+// Returns: 2012-11-30-23-00-07
+function extractDate(p) {
+        var filename = path.basename(p);
+        var d = filename.substring(filename.indexOf('-') + 1);
         d = d.substring(0, d.indexOf('.'));
         return (d);
 }
@@ -347,54 +247,28 @@ function findGcObjects(opts, cb) {
                 return;
         }
 
-        vasync.forEachParallel({
-                func: findLatestBackupObjects,
-                inputs: shards
+        lib.common.findObjectsForShards({
+                'log': LOG,
+                'shards': shards,
+                'client': MANTA_CLIENT,
+                'tablePrefixes': [
+                        MANTA_DUMP_NAME_PREFIX,
+                        MANTA_DELETE_LOG_DUMP_NAME_PREFIX
+                ]
         }, function (err, results) {
                 if (err) {
                         cb(err);
-                        return;
-                }
-                if (results.successes.length !== shards.length) {
-                        cb(new Error('Couldnt find latest backup for all ' +
-                                     'shards.'));
                         return;
                 }
 
                 var objects = [];
                 var dates = [];
 
-                for (var i = 0; i < shards.length; ++i) {
-                        var res = results.successes[i];
-                        var dir = res.directory;
-                        var objs = res.objects;
-
-                        //Search the objects for the tables we need to process
-                        var foundManta = false;
-                        var foundMantaDeleteLog = false;
-                        var mdnp = MANTA_DUMP_NAME_PREFIX;
-                        var mdldnp = MANTA_DELETE_LOG_DUMP_NAME_PREFIX;
-                        for (var j = 0; j < objs.length; ++j) {
-                                var obj = objs[j];
-                                if (startsWith(obj, mdnp)) {
-                                        foundManta = true;
-                                        objects.push(dir + '/' + obj);
-                                        //Get the date from the filename...
-                                        dates.push(extractDate(mdnp, obj));
-                                } else if (startsWith(obj, mdldnp)) {
-                                        foundMantaDeleteLog = true;
-                                        objects.push(dir + '/' + obj);
-                                }
-                        }
-
-                        if (!foundManta || !foundMantaDeleteLog) {
-                                var m = 'Couldnt find all tables in dump ' +
-                                        'directory.';
-                                LOG.error({ dir: dir, objs: objs },
-                                          m);
-                                cb(new Error(m));
-                                return;
-                        }
+                for (var j = 0; j < results.length; ++j) {
+                        var obj = results[j];
+                        objects.push(obj);
+                        //Get the date from the filename...
+                        dates.push(extractDate(obj));
                 }
 
                 dates.sort();
@@ -403,7 +277,6 @@ function findGcObjects(opts, cb) {
                         objects: objects
                 }, 'found gc objects');
                 opts.earliestDumpDate = dates[0];
-
                 cb(null, objects);
         });
 }

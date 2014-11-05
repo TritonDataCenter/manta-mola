@@ -10,14 +10,12 @@
  * Copyright (c) 2014, Joyent, Inc.
  */
 
-var assert = require('assert-plus');
 var bunyan = require('bunyan');
 var fs = require('fs');
 var getopt = require('posix-getopt');
 var lib = require('../lib');
 var manta = require('manta');
 var path = require('path');
-var vasync = require('vasync');
 
 
 
@@ -40,8 +38,6 @@ var MANTA_USER = MANTA_CLIENT.user;
 ///--- Global Constants
 
 var MP = '/' + MANTA_USER + '/stor';
-var BACKUP_DIR = MP + '/manatee_backups';
-var MAX_HOURS_IN_PAST = 8;
 
 
 
@@ -76,16 +72,6 @@ function getReduceCmd(opts, red) {
         return (cmd);
 }
 /* END JSSTYLED */
-
-
-function startsWith(str, prefix) {
-        return (str.slice(0, prefix.length) === prefix);
-}
-
-
-function endsWith(str, suffix) {
-        return (str.indexOf(suffix, str.length - suffix.length) !== -1);
-}
 
 
 function parseOptions() {
@@ -137,6 +123,10 @@ function parseOptions() {
                 usage('map or reading from stdin must be specified');
         }
 
+        if (opts.tablePrefixes.length === 0) {
+                usage('table prefixes is required (perhaps manta-)?');
+        }
+
         //Set up some defaults...
         opts.jobName = opts.jobName || 'manta_pg_job';
         opts.jobRoot = opts.jobRoot || MP + '/manta_pg_job';
@@ -172,105 +162,6 @@ function usage(msg) {
         str += ' [-t table_prefix]';
         console.error(str);
         process.exit(1);
-}
-
-
-function getObjectsInDir(dir, cb) {
-        var objects = [];
-        MANTA_CLIENT.ls(dir, {}, function (err, res) {
-                if (err) {
-                        cb(err);
-                        return;
-                }
-
-                res.on('object', function (obj) {
-                        objects.push(dir + '/' + obj.name);
-                });
-
-                res.once('error', function (err2) {
-                        cb(err2);
-                });
-
-                res.once('end', function () {
-                        cb(null, objects);
-                });
-        });
-}
-
-
-function pad(n) {
-        return ((n < 10) ? '0' + n : '' + n);
-}
-
-
-//TODO: Use one in common...
-function findLatestBackupObjects(opts, cb) {
-        if ((typeof (opts)) === 'string' || opts instanceof String) {
-                opts = {
-                        'shard': opts,
-                        'iteration': 0,
-                        'timestamp': new Date().getTime()
-                };
-        }
-        assert.string(opts.shard, 'opts.shard');
-        assert.number(opts.iteration, 'opts.iteration');
-        assert.number(opts.timestamp, 'opts.timestamp');
-
-        if (opts.iteration >= MAX_HOURS_IN_PAST) {
-                cb(new Error('Couldnt find objects for ' +
-                             opts.shard + ' in past ' +
-                             opts.iteration + ' hours'));
-                return;
-        }
-
-        var d = new Date(opts.timestamp - (opts.iteration * 60 * 60 * 1000));
-
-        var dir = BACKUP_DIR + '/' +
-                opts.shard + '/' +
-                d.getFullYear() + '/' +
-                pad(d.getMonth() + 1) + '/' +
-                pad(d.getDate()) + '/' +
-                pad(d.getHours());
-
-        MANTA_CLIENT.ls(dir, {}, function (err, res) {
-                function next() {
-                        opts.iteration += 1;
-                        findLatestBackupObjects(opts, cb);
-                }
-                if (err && err.code !== 'NotFoundError') {
-                        cb(err);
-                        return;
-                }
-                if (err) {
-                        next();
-                        return;
-                }
-
-                var objs = [];
-
-                res.on('object', function (o) {
-                        objs.push(o.name);
-                });
-
-                res.on('error', function (err2) {
-                        cb(err2);
-                });
-
-                res.on('end', function () {
-                        // Dumps are done in 2 phases.  First, the entire DB is
-                        // dumped to 'moray-', then a job transforms that into
-                        // many smaller tables.  So what's here isn't going
-                        // to work all the time, but is good enough for now.
-                        if (objs.length > 1) {
-                                cb(null, {
-                                        directory: dir,
-                                        objects: objs
-                                });
-                                return;
-                        }
-                        next();
-                });
-        });
 }
 
 
@@ -323,43 +214,12 @@ function getObjects(opts, cb) {
                 return;
         }
 
-        vasync.forEachParallel({
-                func: findLatestBackupObjects,
-                inputs: shards
-        }, function (err, results) {
-                if (err) {
-                        cb(err);
-                        return;
-                }
-                if (results.successes.length !== shards.length) {
-                        cb(new Error('Couldnt find latest backup for all ' +
-                                     'shards.'));
-                        return;
-                }
-
-                var objects = [];
-
-                for (var i = 0; i < shards.length; ++i) {
-                        var res = results.successes[i];
-                        var dir = res.directory;
-                        var objs = res.objects;
-                        var tp = opts.tablePrefixes.map(function (p) {
-                                return (p);
-                        });
-
-                        //Search the objects for the tables we need to process
-                        for (var j = 0; j < objs.length; ++j) {
-                                var obj = objs[j];
-                                for (var k = 0; k < tp.length; ++k) {
-                                        if (startsWith(obj, tp[k])) {
-                                                objects.push(dir + '/' + obj);
-                                        }
-                                }
-                        }
-                }
-
-                cb(null, objects);
-        });
+        lib.common.findObjectsForShards({
+                'log': LOG,
+                'shards': shards,
+                'client': MANTA_CLIENT,
+                'tablePrefixes': opts.tablePrefixes
+        }, cb);
 }
 
 

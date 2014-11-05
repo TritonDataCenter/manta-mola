@@ -10,7 +10,6 @@
  * Copyright (c) 2014, Joyent, Inc.
  */
 
-var assert = require('assert-plus');
 var bunyan = require('bunyan');
 var fs = require('fs');
 var getopt = require('posix-getopt');
@@ -18,7 +17,6 @@ var lib = require('../lib');
 var manta = require('manta');
 var path = require('path');
 var sprintf = require('sprintf-js').sprintf;
-var vasync = require('vasync');
 
 
 
@@ -41,16 +39,9 @@ var MANTA_USER = MANTA_CLIENT.user;
 ///--- Global Constants
 
 var MP = '/' + MANTA_USER + '/stor';
-var MANATEE_BACKUP_DIR = MP + '/manatee_backups';
-var MAKO_BACKUP_DIR = MP + '/mako';
 var MANTA_DUMP_NAME_PREFIX = 'manta-';
 var MANTA_DELETE_LOG_NAME_PREFIX = 'manta_delete_log-';
-var RUNNING_STATE = 'running';
-var TOO_NEW_SECONDS = 60 * 60 * 24 * 2; // 2 days
-// If the mako dumps are more than 3 days in the past we should fatal.
-var MAX_MILLIS_MAKO_DUMPS_IN_PAST = 1000 * 60 * 60 * 24 * 3; // 3 days
-// We shouldn't take moray dumps that are way way in the past.
-var MAX_HOURS_MORAYS_BEFORE_MAKOS = 12;
+var DEFAULT_TOO_NEW_SECONDS = 60 * 60 * 24 * 2; // 2 days
 
 
 
@@ -73,7 +64,7 @@ function getTransformCmd(opts) {
         var grepForStorageNode = '';
         var filterTimestamp =
                 Math.floor(opts.earliestMorayDump.getTime() / 1000) -
-                TOO_NEW_SECONDS;
+                opts.tooNewSeconds;
         if (opts.mantaStorageId) {
                 grepForStorageNode = ' | grep ' + opts.mantaStorageId + ' | ';
         }
@@ -114,7 +105,7 @@ function parseOptions() {
         // command line, and use the defaults if all else fails.
         var opts = MOLA_CRUFT_CONFIG_OBJ;
         opts.shards = opts.shards || [];
-        var parser = new getopt.BasicParser('a:d:m:np:r:s:t',
+        var parser = new getopt.BasicParser('a:d:m:np:r:s:tx:',
                                             process.argv);
         while ((option = parser.getopt()) !== undefined && !option.error) {
                 switch (option.option) {
@@ -143,6 +134,9 @@ function parseOptions() {
                         opts.jobName = 'manta_cruft_test';
                         opts.jobRoot = MP + '/manta_cruft_test';
                         break;
+                case 'x':
+                        opts.tooNewSeconds = parseInt(option.optarg, 10);
+                        break;
                 default:
                         usage('Unknown option: ' + option.option);
                         break;
@@ -157,11 +151,12 @@ function parseOptions() {
         opts.assetFile = opts.assetFile ||
                 '/opt/smartdc/common/bundle/mola.tar.gz';
 
-        opts.marlinMapDisk = opts.marlinMapDisk || 16;
+        opts.marlinMapDisk = opts.marlinMapDisk || 32;
         opts.marlinReducerMemory = opts.marlinReducerMemory || 4096;
         opts.marlinReducerDisk = opts.marlinReducerDisk || 16;
         opts.marlinPathToAsset = opts.assetObject.substring(1);
         opts.marlinAssetObject = opts.assetObject;
+        opts.tooNewSeconds = opts.tooNewSeconds || DEFAULT_TOO_NEW_SECONDS;
 
         opts.directories = [
                 opts.jobRoot + '/do',
@@ -185,44 +180,6 @@ function usage(msg) {
         str += ' [-t output_to_test]';
         console.error(str);
         process.exit(1);
-}
-
-
-function startsWith(str, prefix) {
-        return (str.slice(0, prefix.length) === prefix);
-}
-
-
-function endsWith(str, suffix) {
-        return (str.indexOf(suffix, str.length - suffix.length) !== -1);
-}
-
-
-//TODO: Factor out to common
-function getObjectsInDir(dir, cb) {
-        var objects = [];
-        MANTA_CLIENT.ls(dir, {}, function (err, res) {
-                if (err) {
-                        cb(err);
-                        return;
-                }
-
-                res.on('object', function (obj) {
-                        objects.push({
-                                'directory': dir,
-                                'object': obj,
-                                'fullPath': dir + '/' + obj.name
-                        });
-                });
-
-                res.once('error', function (err2) {
-                        cb(err2);
-                });
-
-                res.once('end', function () {
-                        cb(null, objects);
-                });
-        });
 }
 
 
@@ -253,238 +210,23 @@ function getCruftJob(opts, cb) {
 }
 
 
-//TODO: Use something in common, please.
-function findMorayBackupObjects(opts, cb) {
-        var shard = opts.shard;
-        var earliestMakoDump = opts.earliestMakoDump;
-        var offset = (opts.offset === undefined) ? 0 : opts.offset;
-
-        if (offset === MAX_HOURS_MORAYS_BEFORE_MAKOS - 1) {
-                LOG.info('Couldn\'t find moray backup for shard ' + shard +
-                         ' for ' + MAX_HOURS_MORAYS_BEFORE_MAKOS +
-                         ' hours before ' + new Date(earliestMakoDump));
-                cb(null);
-                return;
-        }
-
-        //We need to find a backup that is as close in time to the earliest
-        // mako dump, but still earlier.  We're looking for
-        // /[MANTA_USER]/stor/manatee_backups/[shard]/\
-        //    [year]/[month]/[day]/[hour]/\
-        //    manta-[year]-[month]-[day]-[hour]-[minutes]-[seconds].[\w*]
-
-        //Subtract one hour for each offset
-        var ed = new Date(earliestMakoDump);
-        var d = new Date(ed.getTime() - (offset * 60 * 60 * 1000));
-
-        var dir = sprintf('%s/%s/%04d/%02d/%02d/%02d',
-                          MANATEE_BACKUP_DIR, shard,
-                          d.getUTCFullYear(), d.getUTCMonth() + 1,
-                          d.getUTCDate(), d.getUTCHours());
-
-        getObjectsInDir(dir, function (err, objects) {
-                if (err && err.name === 'NotFoundError') {
-                        findMorayBackupObjects({
-                                'shard': shard,
-                                'earliestMakoDump': earliestMakoDump,
-                                'offset': offset + 1
-                        }, cb);
-                        return;
-                }
-
-                if (err) {
-                        cb(err);
-                        return;
-                }
-
-                var objs = [];
-                for (var i = 0; i < objects.length; ++i) {
-                        var o = objects[i].object;
-                        o.directory = dir;
-                        o.fullPath = o.directory + '/' + o.name;
-                        if (startsWith(o.name, MANTA_DUMP_NAME_PREFIX)) {
-                                objs.push(o);
-                        }
-                        if (startsWith(o.name, MANTA_DELETE_LOG_NAME_PREFIX)) {
-                                objs.push(o);
-                        }
-                }
-
-                if (objs.length != 2 ||
-                    objs[0].mtime > earliestMakoDump ||
-                    objs[1].mtime > earliestMakoDump) {
-                        findMorayBackupObjects({
-                                'shard': shard,
-                                'earliestMakoDump': earliestMakoDump,
-                                'offset': offset + 1
-                        }, cb);
-                        return;
-                }
-
-                cb(null, objs);
-        });
-}
-
-
-function findMorayObjects(opts, cb) {
-        LOG.info({ opts: opts }, 'Find Moray Objects.');
-        var shards = opts.shards;
-        var earliestMakoDump = opts.earliestMakoDump;
-
-        if (shards.length === 0 || !earliestMakoDump) {
-                LOG.info('No shard backups.  Must not be setup yet.');
-                cb(null);
-                return;
-        }
-
-        vasync.forEachParallel({
-                func: findMorayBackupObjects,
-                inputs: shards.map(function (shard) {
-                        return ({
-                                'shard': shard,
-                                'earliestMakoDump': earliestMakoDump
-                        });
-                })
-        }, function (err, results) {
-                if (err) {
-                        cb(err);
-                        return;
-                }
-                if (results.successes.length !== shards.length) {
-                        cb(new Error('Couldnt find backup for all ' +
-                                     'shards.'));
-                        return;
-                }
-
-                var objects = [];
-                var earliestMorayDump = null;
-                for (var i = 0; i < shards.length; ++i) {
-                        var objs = results.successes[i];
-                        //Ok, this is a little strange.  If we don't find one
-                        // of them, then we don't want the job to continue
-                        // but we don't want to log FATAL either.  So we
-                        // return nothing, and that should give us ^^.
-                        if (objs === null || objs === undefined ||
-                            objs.length === 0) {
-                                cb(null, []);
-                                return;
-                        }
-                        objs.forEach(function (o) {
-                                var mtime = new Date(o.mtime);
-                                if (!earliestMorayDump ||
-                                    mtime < earliestMorayDump) {
-                                        earliestMorayDump = mtime;
-                                }
-                                objects.push(o.fullPath);
-                        });
-                }
-                opts.earliestMorayDump = earliestMorayDump;
-
-                cb(null, objects);
-        });
-}
-
-
-//TODO: Common, please!
-function findLatestMakoObjects(opts, cb) {
-        getObjectsInDir(MAKO_BACKUP_DIR, function (err, objects) {
-                if (err && (err.name === 'ResourceNotFoundError' ||
-                            err.name === 'NotFoundError')) {
-                        LOG.info('No Mako Objects found');
-                        cb(null, []);
-                        return;
-                }
-                if (err) {
-                        cb(err);
-                        return;
-                }
-
-                var earliestDump = null;
-                for (var i = 0; i < objects.length; ++i) {
-                        var o = objects[i].object;
-                        //We can string compare here since we have an
-                        // ISO 8601 date.
-                        if (earliestDump === null || earliestDump > o.mtime) {
-                                earliestDump = o.mtime;
-                        }
-                }
-                if (earliestDump === null) {
-                        cb(new Error('Couldn\'t determine earliest dump from ' +
-                                     'mako dumps.'));
-                        return;
-                }
-
-                // Mako dumps are too far in the past, then fatal.
-                var now = new Date().getTime();
-                var eTime = new Date(earliestDump).getTime();
-                if ((now - MAX_MILLIS_MAKO_DUMPS_IN_PAST) > eTime) {
-                        var error = new Error('Earliest mako dumps are too ' +
-                                              ' old: ' + earliestDump);
-                        return (cb(error));
-                }
-
-                opts.earliestMakoDump = earliestDump;
-                var paths = objects.map(function (ob) {
-                        return (ob.fullPath);
-                });
-
-                cb(null, paths);
-        });
-}
-
-
 function findObjects(opts, cb) {
-        vasync.pipeline({
-                funcs: [
-                        findLatestMakoObjects,
-                        findMorayObjects
-                ],
-                arg: opts
-        }, function (err, results) {
-                if (err || !results.successes) {
-                        cb(err, []);
-                        return;
-                }
-
-                var objects = [];
-                for (var i = 0; i < results.successes.length; ++i) {
-                        //If no objects were found for one of the results,
-                        // return empty.
-                        if (results.successes[i].length === 0) {
-                                cb(null, []);
-                                return;
-                        } else {
-                                objects = objects.concat(results.successes[i]);
-                        }
-                }
-                cb(null, objects);
-        });
-}
-
-
-//TODO: Use the one in common
-function getObject(objectPath, cb) {
-        var res = '';
-        MANTA_CLIENT.get(objectPath, {}, function (err, stream) {
+        lib.common.findMorayMakoObjects({
+                'client': MANTA_CLIENT,
+                'log': LOG,
+                'shards': opts.shards,
+                'tablePrefixes': [ MANTA_DUMP_NAME_PREFIX,
+                                   MANTA_DELETE_LOG_NAME_PREFIX ]
+        }, function (err, res) {
                 if (err) {
-                        cb(err);
-                        return;
+                        return (cb(err));
                 }
-
-                stream.on('error', function (err1) {
-                        cb(err1);
-                        return;
-                });
-
-                stream.on('data', function (data) {
-                        res += data;
-                });
-
-                stream.on('end', function () {
-                        cb(null, res);
-                });
+                opts.earliestMakoDump = res.earliestMakoDump;
+                opts.earliestMorayDump = res.earliestMorayDump;
+                return (cb(null, res.objects));
         });
 }
+
 
 
 ///--- Main
@@ -495,7 +237,10 @@ _opts.getJobDefinition = getCruftJob;
 _opts.getJobObjects = findObjects;
 
 var _doDir = _opts.jobRoot + '/do';
-getObjectsInDir(_doDir, function (err, objects) {
+lib.common.getObjectsInDir({
+        'client': MANTA_CLIENT,
+        'dir': _doDir
+}, function (err, objects) {
         if (err && err.name !== 'NotFoundError') {
                 LOG.fatal(err, 'error fetching do objects');
                 process.exit(1);
