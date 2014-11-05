@@ -124,7 +124,7 @@ function parseOptions() {
                         opts.assetFile = option.optarg;
                         break;
                 case 'd':
-                        opts.marlinReducerDisk = parseInt(option.optarg, 10);
+                        opts.gcReduceDisk = parseInt(option.optarg, 10);
                         break;
                 case 'g':
                         opts.gracePeriodSeconds = parseInt(option.optarg, 10);
@@ -139,10 +139,10 @@ function parseOptions() {
                         opts.objectId = option.optarg;
                         break;
                 case 'p':
-                        opts.marlinMapDisk = parseInt(option.optarg, 10);
+                        opts.gcMapDisk = parseInt(option.optarg, 10);
                         break;
                 case 'r':
-                        opts.marlinReducerMemory = parseInt(option.optarg, 10);
+                        opts.gcReduceMemory = parseInt(option.optarg, 10);
                         break;
                 case 't':
                         opts.jobName = 'manta_gc_test';
@@ -163,9 +163,9 @@ function parseOptions() {
         opts.assetFile = opts.assetFile ||
                 '/opt/smartdc/common/bundle/mola.tar.gz';
 
-        opts.marlinMapDisk = opts.marlinMapDisk || 32;
-        opts.marlinReducerMemory = opts.marlinReducerMemory || 8192;
-        opts.marlinReducerDisk = opts.marlinReducerDisk || 16;
+        opts.gcMapDisk = opts.gcMapDisk || 32;
+        opts.gcReduceMemory = opts.gcReduceMemory || 8192;
+        opts.gcReduceDisk = opts.gcReduceDisk || 16;
         opts.marlinPathToAsset = opts.assetObject.substring(1);
         opts.marlinAssetObject = opts.assetObject;
 
@@ -211,12 +211,12 @@ function getGcJob(opts, cb) {
                 phases: [ {
                         type: 'storage-map',
                         exec: pgCmd,
-                        disk: opts.marlinMapDisk
+                        disk: opts.gcMapDisk
                 }, {
                         type: 'reduce',
                         count: opts.numberReducers,
-                        memory: opts.marlinReducerMemory,
-                        disk: opts.marlinReducerDisk,
+                        memory: opts.gcReduceMemory,
+                        disk: opts.gcReduceDisk,
                         exec: gcCmd
                 } ]
         };

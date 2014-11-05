@@ -94,7 +94,7 @@ function parseOptions() {
                         opts.assetFile = option.optarg;
                         break;
                 case 'd':
-                        opts.marlinReducerDisk = parseInt(option.optarg, 10);
+                        opts.auditReduceDisk = parseInt(option.optarg, 10);
                         break;
                 case 'm':
                         opts.shards.push(option.optarg);
@@ -103,10 +103,10 @@ function parseOptions() {
                         opts.noJobStart = true;
                         break;
                 case 'p':
-                        opts.marlinMapDisk = parseInt(option.optarg, 10);
+                        opts.auditMapDisk = parseInt(option.optarg, 10);
                         break;
                 case 'r':
-                        opts.marlinReducerMemory = parseInt(option.optarg, 10);
+                        opts.auditReduceMemory = parseInt(option.optarg, 10);
                         break;
                 case 's':
                         opts.mantaStorageId = option.optarg;
@@ -129,9 +129,9 @@ function parseOptions() {
         opts.assetFile = opts.assetFile ||
                 '/opt/smartdc/common/bundle/mola.tar.gz';
 
-        opts.marlinMapDisk = opts.marlinMapDisk || 32;
-        opts.marlinReducerMemory = opts.marlinReducerMemory || 4096;
-        opts.marlinReducerDisk = opts.marlinReducerDisk || 16;
+        opts.auditMapDisk = opts.auditMapDisk || 32;
+        opts.auditReduceMemory = opts.auditReduceMemory || 4096;
+        opts.auditReduceDisk = opts.auditReduceDisk || 16;
         opts.marlinPathToAsset = opts.assetObject.substring(1);
         opts.marlinAssetObject = opts.assetObject;
 
@@ -166,12 +166,12 @@ function getAuditJob(opts, cb) {
                 phases: [ {
                         type: 'storage-map',
                         exec: pgCmd,
-                        disk: opts.marlinMapDisk
+                        disk: opts.auditMapDisk
                 }, {
                         type: 'reduce',
                         count: opts.numberReducers,
-                        memory: opts.marlinReducerMemory,
-                        disk: opts.marlinReducerDisk,
+                        memory: opts.auditReduceMemory,
+                        disk: opts.auditReduceDisk,
                         exec: auditCmd
                 }, {
                         type: 'reduce',

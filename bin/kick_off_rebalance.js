@@ -126,7 +126,7 @@ function parseOptions() {
                         opts.noJobStart = true;
                         break;
                 case 'r':
-                        opts.marlinMemory = parseInt(option.optarg, 10);
+                        opts.rebalanceMemory = parseInt(option.optarg, 10);
                         break;
                 case 's':
                         opts.storageShard = option.optarg;
@@ -157,7 +157,7 @@ function parseOptions() {
         opts.assetFile = opts.assetFile ||
                 '/opt/smartdc/common/bundle/mola.tar.gz';
 
-        opts.marlinMemory = opts.marlinMemory || 4096;
+        opts.rebalanceMemory = opts.rebalanceMemory || 4096;
         opts.marlinPathToAsset = opts.assetObject.substring(1);
         opts.marlinAssetObject = opts.assetObject;
 
@@ -230,12 +230,12 @@ function getRebalanceJob(opts, cb) {
                 var job = {
                         phases: [ {
                                 type: 'storage-map',
-                                memory: opts.marlinMemory,
+                                memory: opts.rebalanceMemory,
                                 exec: getMapCmd(opts)
                         }, {
                                 type: 'reduce',
                                 count: opts.numberReducers,
-                                memory: opts.marlinMemory,
+                                memory: opts.rebalanceMemory,
                                 exec: getRebalanceCmd(opts),
                                 assets: [ opts.sharksAssetObject ]
                         } ]

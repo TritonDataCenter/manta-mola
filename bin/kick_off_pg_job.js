@@ -105,7 +105,7 @@ function parseOptions() {
                         opts.map = option.optarg;
                         break;
                 case 'r':
-                        opts.marlinReducerMemory = parseInt(option.optarg, 10);
+                        opts.pgJobReduceMemory = parseInt(option.optarg, 10);
                         break;
                 case 's':
                         opts.readFromStdin = true;
@@ -136,7 +136,7 @@ function parseOptions() {
         opts.assetFile = opts.assetFile ||
                 '/opt/smartdc/common/bundle/mola.tar.gz';
 
-        opts.marlinReducerMemory = opts.marlinReducerMemory || 4096;
+        opts.pgJobReduceMemory = opts.pgJobReduceMemory || 4096;
         opts.marlinPathToAsset = opts.assetObject.substring(1);
         opts.marlinAssetObject = opts.assetObject;
 
@@ -196,7 +196,7 @@ function getJob(opts, cb) {
                         job.phases.push({
                                 type: 'reduce',
                                 count: opts.numberReducers,
-                                memory: opts.marlinReducerMemory,
+                                memory: opts.pgJobReduceMemory,
                                 exec: getReduceCmd(opts, opts.reduces[i])
                         });
                 }

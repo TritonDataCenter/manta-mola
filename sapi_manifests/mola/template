@@ -20,5 +20,18 @@
         },
         "connectTimeout": 1000,
         "rejectUnauthorized": {{MANTA_REJECT_UNAUTHORIZED}}
-    }
+    }{{#AUDIT_MAP_DISK}},
+    "auditMapDisk": {{AUDIT_MAP_DISK}}{{/AUDIT_MAP_DISK}}{{#AUDIT_REDUCE_DISK}},
+    "auditReduceDisk": {{AUDIT_REDUCE_DISK}}{{/AUDIT_REDUCE_DISK}}{{#AUDIT_REDUCE_MEMORY}},
+    "auditReduceMemory": {{AUDIT_REDUCE_MEMORY}}{{/AUDIT_REDUCE_MEMORY}}{{#CRUFT_MAP_DISK}},
+    "cruftMapDisk": {{CRUFT_MAP_DISK}}{{/CRUFT_MAP_DISK}}{{#CRUFT_REDUCE_DISK}},
+    "cruftReduceDisk": {{CRUFT_REDUCE_DISK}}{{/CRUFT_REDUCE_DISK}}{{#CRUFT_REDUCE_MEMORY}},
+    "cruftReduceMemory": {{CRUFT_REDUCE_MEMORY}}{{/CRUFT_REDUCE_MEMORY}}{{#GC_MAP_DISK}},
+    "gcMapDisk": {{GC_MAP_DISK}}{{/GC_MAP_DISK}}{{#GC_REDUCE_DISK}},
+    "gcReduceDisk": {{GC_REDUCE_DISK}}{{/GC_REDUCE_DISK}}{{#GC_REDUCE_MEMORY}},
+    "gcReduceMemory": {{GC_REDUCE_MEMORY}}{{/GC_REDUCE_MEMORY}}{{#PG_JOB_REDUCE_MEMORY}},
+    "pgJobReduceMemory": {{PG_JOB_REDUCE_MEMORY}}{{/PG_JOB_REDUCE_MEMORY}}{{#REBALANCE_MEMORY}},
+    "rebalanceMemory": {{REBALANCE_MEMORY}}{{/REBALANCE_MEMORY}}{{#PG_MAP_DISK}},
+    "pgMapDisk": {{PG_MAP_DISK}}{{/PG_MAP_DISK}}{{#PG_MAP_MEMORY}},
+    "pgMapMemory": {{PG_MAP_MEMORY}}{{/PG_MAP_MEMORY}}
 }

@@ -102,7 +102,10 @@ function parseOptions() {
                         opts.outputDirectory = option.optarg;
                         break;
                 case 'p':
-                        opts.marlinMapDisk = parseInt(option.optarg, 10);
+                        opts.pgMapDisk = parseInt(option.optarg, 10);
+                        break;
+                case 'y':
+                        opts.pgMapMemory = parseInt(option.optarg, 10);
                         break;
                 default:
                         usage('Unknown option: ' + option.option);
@@ -136,8 +139,8 @@ function parseOptions() {
                 opts.shards.push(opts.storageShard);
         }
 
-        opts.marlinMapDisk = opts.marlinMapDisk || 16;
-        opts.marlinMapMemory = opts.marlinMapMemory || 1024;
+        opts.pgMapDisk = opts.pgMapDisk || 16;
+        opts.pgMapMemory = opts.pgMapMemory || 1024;
 
         if (opts.outputDirectory &&
             !lib.common.endsWith(opts.outputDirectory, '/')) {
@@ -171,8 +174,8 @@ function getJob(opts, cb) {
         var job = {
                 phases: [ {
                         type: 'map',
-                        memory: opts.marlinMapMemory,
-                        disk: opts.marlinMapDisk,
+                        memory: opts.pgMapMemory,
+                        disk: opts.pgMapDisk,
                         exec: getMapCmd(opts)
                 } ]
         };
@@ -216,8 +219,8 @@ function startJobForObject(opts, cb) {
                 // Passthrough options...
                 'assetFile': opts.assetFile,
                 'assetObject': opts.assetObject,
-                'marlinMapDisk': opts.marlinMapDisk,
-                'marlinMapMemory': opts.marlinMapMemory,
+                'pgMapDisk': opts.pgMapDisk,
+                'pgMapMemory': opts.pgMapMemory,
                 'marlinPathToAsset': opts.marlinPathToAsset,
                 'marlinAssetObject': opts.marlinAssetObject,
                 'noJobStart': opts.noJobStart

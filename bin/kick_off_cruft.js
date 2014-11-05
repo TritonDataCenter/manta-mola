@@ -113,7 +113,7 @@ function parseOptions() {
                         opts.assetFile = option.optarg;
                         break;
                 case 'd':
-                        opts.marlinReducerDisk = parseInt(option.optarg, 10);
+                        opts.cruftReduceDisk = parseInt(option.optarg, 10);
                         break;
                 case 'm':
                         opts.shards.push(option.optarg);
@@ -122,10 +122,10 @@ function parseOptions() {
                         opts.noJobStart = true;
                         break;
                 case 'p':
-                        opts.marlinMapDisk = parseInt(option.optarg, 10);
+                        opts.cruftMapDisk = parseInt(option.optarg, 10);
                         break;
                 case 'r':
-                        opts.marlinReducerMemory = parseInt(option.optarg, 10);
+                        opts.cruftReduceMemory = parseInt(option.optarg, 10);
                         break;
                 case 's':
                         opts.mantaStorageId = option.optarg;
@@ -151,9 +151,9 @@ function parseOptions() {
         opts.assetFile = opts.assetFile ||
                 '/opt/smartdc/common/bundle/mola.tar.gz';
 
-        opts.marlinMapDisk = opts.marlinMapDisk || 32;
-        opts.marlinReducerMemory = opts.marlinReducerMemory || 4096;
-        opts.marlinReducerDisk = opts.marlinReducerDisk || 16;
+        opts.cruftMapDisk = opts.cruftMapDisk || 32;
+        opts.cruftReduceMemory = opts.cruftReduceMemory || 4096;
+        opts.cruftReduceDisk = opts.cruftReduceDisk || 16;
         opts.marlinPathToAsset = opts.assetObject.substring(1);
         opts.marlinAssetObject = opts.assetObject;
         opts.tooNewSeconds = opts.tooNewSeconds || DEFAULT_TOO_NEW_SECONDS;
@@ -194,12 +194,12 @@ function getCruftJob(opts, cb) {
                 phases: [ {
                         type: 'storage-map',
                         exec: pgCmd,
-                        disk: opts.marlinMapDisk
+                        disk: opts.cruftMapDisk
                 }, {
                         type: 'reduce',
                         count: opts.numberReducers,
-                        memory: opts.marlinReducerMemory,
-                        disk: opts.marlinReducerDisk,
+                        memory: opts.cruftReduceMemory,
+                        disk: opts.cruftReduceDisk,
                         exec: cruftCmd
                 } ]
         };
