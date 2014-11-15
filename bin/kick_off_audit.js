@@ -235,7 +235,7 @@ function checkJobResults(job, audit, opts, cb) {
                 }
 
                 gopts.path = parts[0];
-                lib.common.getObject(parts[0], function (err2, errorLines) {
+                lib.common.getObject(gopts, function (err2, errorLines) {
                         if (err2) {
                                 //Don't know if it failed or not.
                                 return (cb(err2));
