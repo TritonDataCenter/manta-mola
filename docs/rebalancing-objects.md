@@ -20,43 +20,6 @@ necessary to move objects from one mako to another.  This was originally written
 when we ran into a situation where all objects were being put on two different
 mako nodes, but within the same datacenter.
 
-# Implementation Details
-
-## Input
-
-1. Manta tables from moray shard dumps.  Currently located at
-
-    /poseidon/stor/manatee_backups/[shard]/[date]/manta-[date].gz
-
-2. Current set of mako nodes.  The kick_off_rebalance app will automatically
-   pull this list from the `manta_storage` table in moray.  You can optionally
-   give a set of manta_storage_ids that will be ignored so that any rebalanced
-   objects won't land on those hosts.
-
-## Phase 1: Marlin job
-
-The marlin jobs sifts through the live objects and finds objects that need to
-be rebalanced.  For example, it will find objects where all copies are located
-in the same datacenter.  It will then randomly choose one shark to place a new
-copy of the object and emit a record with the object information, the new shark
-and the old shark.  These messages will be recorded in a file specific to the
-new shark and uploaded to Manta under:
-
-    /poseidon/stor/manta_rebalance/do/[manta_storage_id]/[file]
-
-## Phase 2: Rebalancing
-
-On each mako node, an operator runs an application by hand that will process all
-files located in the mako-specific manta directory.  For each object it will:
-
-1. Fetch all moray records for the object and verify it hasn't been updated
-   since the job ran.
-2. Pull down the object from the old mako node.
-3. Verify the checksum of the new file matches what's in Moray.
-4. Move the new file into the correct location on the new mako node.
-5. Update all moray records, replacing the old shark with the new shark.
-6. Move the remote file to the daily tombstone directory.
-
 # Performing a rebalance
 
 ## Running the Marlin Job
@@ -249,3 +212,40 @@ You'll see this in the logs:
 
 Unfortunately, this is a moray issue.  You can try to rerun, but if it is
 reproducible then it's bug fixing time.
+
+# Implementation Details
+
+## Input
+
+1. Manta tables from moray shard dumps.  Currently located at
+
+    /poseidon/stor/manatee_backups/[shard]/[date]/manta-[date].gz
+
+2. Current set of mako nodes.  The kick_off_rebalance app will automatically
+   pull this list from the `manta_storage` table in moray.  You can optionally
+   give a set of manta_storage_ids that will be ignored so that any rebalanced
+   objects won't land on those hosts.
+
+## Phase 1: Marlin job
+
+The marlin jobs sifts through the live objects and finds objects that need to
+be rebalanced.  For example, it will find objects where all copies are located
+in the same datacenter.  It will then randomly choose one shark to place a new
+copy of the object and emit a record with the object information, the new shark
+and the old shark.  These messages will be recorded in a file specific to the
+new shark and uploaded to Manta under:
+
+    /poseidon/stor/manta_rebalance/do/[manta_storage_id]/[file]
+
+## Phase 2: Rebalancing
+
+On each mako node, an operator runs an application by hand that will process all
+files located in the mako-specific manta directory.  For each object it will:
+
+1. Fetch all moray records for the object and verify it hasn't been updated
+   since the job ran.
+2. Pull down the object from the old mako node.
+3. Verify the checksum of the new file matches what's in Moray.
+4. Move the new file into the correct location on the new mako node.
+5. Update all moray records, replacing the old shark with the new shark.
+6. Move the remote file to the daily tombstone directory.

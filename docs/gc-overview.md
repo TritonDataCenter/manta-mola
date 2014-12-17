@@ -30,6 +30,85 @@ cannot be consulted at the same instant in time.  Due to this limitation,
 garbage collection is implemented as a Manta job, post-processing the set of
 Moray shard data dumps.
 
+# Running a GC manually
+
+All of these processes are kicked off from cron on a daily basis, so there is
+usually no need to run GC manually.  If there is some reason you do, here is the
+process.
+
+## Kick of the Marlin job from the ops zone
+
+The first stage is to kick off the marlin job.
+
+```
+ops$ kick_off_gc.js | bunyan
+```
+
+This will use the defaults for the stage (coal, production, etc).  Note that
+kicking off a GC job requires db dumps to be "recent".  Please refer to the
+[System Crons](system-crons.md) for the timeline.
+
+If you just want to check on the last job run:
+
+```
+ops$ mjob get $(mget -q /poseidon/stor/manta_gc/jobs.json | json -ak | tail -1)
+```
+
+This stage produces many files that end up under
+`/poseidon/stor/manta_gc/all/done` and a links file that ends up under
+`/poseidon/stor/manta_gc/all/do`.
+
+## Link up output files
+
+The GC link app will verify that the job ran successfully and link files into
+their appropriate locations to be picked up by the moray cleaner and the makos.
+The commands that will be run are in the link file under
+`/poseidon/stor/manta_gc/all/do`.
+
+```
+ops$ gc_create_links.js | bunyan
+```
+
+This should remove the links file from `/poseidon/stor/manta_gc/all/do` after
+processing the commands.  There should be many files linked into
+`/poseidon/stor/manta_gc/mako` and `/poseidon/stor/manta_gc/moray`:
+
+```
+ops$ mfind /poseidon/stor/manta_gc/mako /poseidon/stor/manta_gc/moray
+```
+
+## Run Moray GC
+
+The moray cleaner will delete records from the `manta_delete_log` table in
+all moray shards.
+
+```
+ops$ moray_gc.js | bunyan
+```
+
+## Run Mako GC
+
+On each moray:
+
+```
+mako$ /opt/smartdc/mako/bin/mako_gc.sh
+```
+
+This will move objects from `/manta/[creator]/[objectid]` to
+`/manta/tombstone/[date]/[objectid]`.
+
+It will also delete any `[date]` directories that are "too old", currently 21
+days.
+
+To verify that the GC pipeline is working:
+
+```
+mako$ ls /manta/tombstone/ | while read l \
+   do echo -n "$l "; \
+   ls /manta/tombstone/$l | wc -l; \
+done
+```
+
 # Implementation Details
 
 ## Input

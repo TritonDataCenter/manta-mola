@@ -26,6 +26,26 @@ We should periodically be verifying that object metadata in Moray is correct in
 that the places where moray expects objects to exist, the objects actually do
 exist on mako nodes and alarm/auto-recover if not.
 
+# Running an Audit manually and checking results
+
+Audit is run once a day.  If, for some reason, you do, the process is below.
+
+## Running an audit job
+
+```
+ops$ kick_off_audit.js | bunyan
+```
+
+Take the jobId from the output.  Once it is done, the output should have a
+length of 0.  No output is good output.
+
+To look at the results of the latest audit job:
+
+```
+ops$ mls -l $(mjob outputs $(mget -q /poseidon/stor/manta_audit/jobs.json | \
+     json -ak | tail -1))
+```
+
 # Implementation Details
 
 ## Input
