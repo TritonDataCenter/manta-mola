@@ -200,4 +200,4 @@ been deleted, there is little to no chance of data recovery.
 
 # See Also
 
-* [Design Alternatives](gc-design-alternatives.html): Alternative designs we considered for Garbage Collection.
+* [Design Alternatives](gc-design-alternatives.md): Alternative designs we considered for Garbage Collection.

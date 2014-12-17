@@ -31,17 +31,17 @@ The contents of this repo are joined with Mackerel and work with components
 running on other systems to produce system-wide "crons".  The overview of all
 of these system process can be found here:
 
-[Manta System "Crons"](system-crons.html)
+[Manta System "Crons"](system-crons.md)
 
 # Mola, Object Reconciliation
 
 There are three main processes that Mola manages (or "is" depending on the way
 you look at it):
 
-1. [Garbage Collection](gc-overview.html)
-2. [Object Auditing](audit-overview.html)
-3. [Cruft Tracking and Collection](cruft-overview.html)
-4. [Object Rebalancing](rebalancing-objects.html)
+1. [Garbage Collection](gc-overview.md)
+2. [Object Auditing](audit-overview.md)
+3. [Cruft Tracking and Collection](cruft-overview.md)
+4. [Object Rebalancing](rebalancing-objects.md)
 
 Each follow the same pattern for execution:
 
