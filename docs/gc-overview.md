@@ -152,8 +152,7 @@ a system-wide grace period.  In addition, Moray deletion records are cleaned up
 if records for the object referenced in the deletion record have later records.
 
 The output of the Marlin job is a set of cleanup tasks for Moray shards and Mako
-nodes.  Since we currently don't have a mechanism for making directories from
-Marlin jobs and we want to keep the cleanup tasks around for debugging issues,
+nodes.  Since we want to keep the cleanup tasks around for debugging issues,
 tasks are first uploaded to:
 
     /poseidon/stor/manta_gc/all/done/[date]-[job_id]-X-[uuid]-[mako|moray]-[serverid]
