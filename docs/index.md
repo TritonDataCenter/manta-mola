@@ -33,6 +33,11 @@ of these system process can be found here:
 
 [Manta System "Crons"](system-crons.md)
 
+If you want to run a GC manually or want an introduction to what to look for
+when GC should be running, here is a brief tutorial:
+
+[Running GC Manually in COAL](gc-manual-coal.md)
+
 # Mola, Object Reconciliation
 
 There are three main processes that Mola manages (or "is" depending on the way
