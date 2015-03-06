@@ -5,7 +5,7 @@
  */
 
 /*
- * Copyright (c) 2014, Joyent, Inc.
+ * Copyright (c) 2015, Joyent, Inc.
  */
 
 var assert = require('assert-plus');
@@ -14,7 +14,6 @@ var fs = require('fs');
 var lib = require('../lib');
 var MemoryStream = require('memorystream');
 var util = require('util');
-
 
 
 ///--- Globals
@@ -91,7 +90,7 @@ function runTest(opts, cb) {
         var rebalancer = lib.createRebalancer({
                 mantaStorageId: opts.mantaStorageId,
                 reader: stream,
-                sharks: SHARKS,
+                sharks: opts.sharks || SHARKS,
                 dir: TMP_DIR
         });
 
@@ -259,6 +258,44 @@ test('test: Rebalance away, many sharks', function (t) {
                         newShark: SHARKS['1'][0],
                         oldShark: { manta_storage_id: 'three',
                                     datacenter: '3' },
+                        md5: 'md5',
+                        objectId: 'objectId',
+                        owner: 'owner',
+                        etag: 'oetag' }, obj);
+                t.end();
+        });
+});
+
+test('test: Rebalance away, same datacenter', function (t) {
+        var same_dc_sharks = {
+            '1': [
+                { 'manta_storage_id': 'one', 'datacenter': '1' },
+                { 'manta_storage_id': 'two', 'datacenter': '1' },
+                { 'manta_storage_id': 'three', 'datacenter': '1' }
+            ]
+        };
+        var data = o('k1', [
+                { 'manta_storage_id': 'two', 'datacenter': '1' },
+                { 'manta_storage_id': 'three', 'datacenter': '1' }
+        ]);
+
+        runTest({
+            data: data,
+            mantaStorageId: 'three',
+            sharks: same_dc_sharks
+        }, function (err, res) {
+                t.ok(Object.keys(res).length === 1);
+                var filename = Object.keys(res)[0];
+                t.equal('one', filename);
+                var ob = res[filename];
+                t.ok(ob.length === 1);
+                var obj = ob[0];
+                assert.deepEqual({
+                        key: 'k1',
+                        morayEtag: 'metag',
+                        newShark: same_dc_sharks['1'][0],
+                        oldShark: { manta_storage_id: 'three',
+                                    datacenter: '1' },
                         md5: 'md5',
                         objectId: 'objectId',
                         owner: 'owner',

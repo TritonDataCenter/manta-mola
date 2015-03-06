@@ -7,7 +7,76 @@
  */
 
 /*
- * Copyright (c) 2014, Joyent, Inc.
+ * Copyright (c) 2015, Joyent, Inc.
+ */
+
+/*
+ * kick_off_rebalance.js: kicks off a job to begin rebalancing Manta objects.
+ *
+ * In Manta, rebalancing objects refers to the process of moving objects from
+ * one storage zone (called a "shark") to another.  This process shouldn't be
+ * required under normal operation, but it can be necessary after
+ * misconfiguration or defect has caused objects to be stored in the wrong
+ * places (e.g., multiple copies placed in the same datacenter in a
+ * multi-datacenter deployment).  This process can also be used to evacuate a
+ * shark in preparation for removal.
+ *
+ * By default, the rebalance operation migrates one copy of an object only if
+ * there are multiple copies and all copies are stored in the same datacenter.
+ * With the "-h" option, the rebalance migrates all copies of all objects from
+ * the specified storage zone.  See below for details.  For full details on the
+ * rebalancing procedure, see docs/rebalancing-objects.md.
+ *
+ * This script is run by an operator from the Manta "ops" zone in order to start
+ * a rebalance operation.  The script starts a job that examines the set of
+ * available sharks (fetched from the "manta_storage" bucket) and the set of all
+ * objects in Manta (via database dumps of the metadata tier).
+ *
+ * This script is largely a wrapper that assembles the assets required for the
+ * job (the set of all sharks and the actual rebalancing code in
+ * ./lib/rebalancer.js) as well as the inputs for the job (the metadata tier
+ * dumps) and then runs the job.  The job produces a series of commands to be
+ * executed by the storage tier in order to execute the rebalance.  An operator
+ * step is required on each storage node in order to actually apply these
+ * commands.  Again, see the rebalancing documentation for details.
+ *
+ * Usage information:
+ *
+ *     -a ASSET_FILE    Name of the local file to use as a job asset.  This is
+ *                      typically a tarball of Mola itself.
+ *
+ *     -h STORID        If specified, this should be the manta_storage_id of a
+ *                      shard that we are moving objects FROM.  Specifying this
+ *                      has two implications: we will never select STORID as a
+ *                      destination shark for objects moved by the rebalance
+ *                      operation, and if we find any copies of an object stored
+ *                      on STORID, then we will migrate that copy to another
+ *                      shark.
+ *
+ *     -i STORID        If specified, then don't ever migrate an object to the
+ *                      shark with manta_storage_id STORID.  This can be
+ *                      specified multiple times and none of the named sharks
+ *                      will be used.
+ *
+ *     -m SHARDID       If specified, then operate on shard SHARDID in addition
+ *                      to the default shards.  This may be specified multiple
+ *                      times.
+ *
+ *     -n               Dry-run mode.  Don't actually kick off the job.
+ *
+ *     -r MEMORY        Memory limit (in megabytes) for each phase of the job.
+ *
+ *     -s MORAY_HOST    Hostname or IP address of the metadata shard containing
+ *                      storage-related information (i.e., the Moray shard with
+ *                      the "manta_storage" bucket).
+ *
+ *     -t               Testing mode.  Puts outputs into the
+ *                      "manta_rebalance_test" directory instead of the default
+ *                      "manta_rebalance" directory.
+ *
+ * You typically only need to specify "-h" or "-i" as desired.  The defaults for
+ * these values are taken from the Mola configuration file, typically in
+ * /opt/smartdc/mola/etc/config.json.
  */
 
 var bunyan = require('bunyan');
@@ -85,6 +154,7 @@ function getRebalanceCmd(opts) {
                 hostOption = '-h ' + opts.host + ' ';
         }
         return (getEnvCommon(opts) + ' \
+rm -rf ' + tmpDir + ' && \
 mkdir ' + tmpDir + ' && \
 sort | ./build/node/bin/node ./bin/jext.js -r | \
     ./build/node/bin/node ./bin/rebalance.js \
@@ -108,7 +178,11 @@ function parseOptions() {
         opts.ignoreSharks = [];
         var parser = new getopt.BasicParser('a:h:i:m:nr:s:t',
                                             process.argv);
-        while ((option = parser.getopt()) !== undefined && !option.error) {
+        while ((option = parser.getopt()) !== undefined) {
+                if (option.error) {
+                        usage();
+                }
+
                 switch (option.option) {
                 case 'a':
                         opts.assetFile = option.optarg;
@@ -170,13 +244,13 @@ function usage(msg) {
                 console.error(msg);
         }
         var str  = 'usage: ' + path.basename(process.argv[1]);
-        str += ' [-a asset_object]';
+        str += ' [-a asset_file]';
         str += ' [-h manta_storage_id]';
         str += ' [-m moray_shard]';
-        str += ' [-n no_job_start]';
+        str += ' [-n]';
         str += ' [-r marlin_memory]';
         str += ' [-s storage_shard]';
-        str += ' [-t output_to_test]';
+        str += ' [-t]';
         console.error(str);
         process.exit(1);
 }

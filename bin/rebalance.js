@@ -7,7 +7,36 @@
  */
 
 /*
- * Copyright (c) 2014, Joyent, Inc.
+ * Copyright (c) 2015, Joyent, Inc.
+ */
+
+/*
+ * rebalance.js: read object metadata on stdin and produce commands for mako
+ * zones to execute a rebalance.  See kick_off_rebalance.js and the
+ * documentation in docs/rebalancing-objects.md for details on how this works.
+ * This program is typically executed as the body of a reduce task using the
+ * shark configuration as an asset.
+ *
+ * The implementation is largely in lib/rebalancer.js.
+ *
+ * Usage information:
+ *
+ *     -d TMPDIR        Temporary directory for working files.
+ *     (required)
+ *
+ *     -h STORID        If specified, make sure to migrate all copies of
+ *     (optional)       all objects stored on shark STORID.
+ *
+ *     -s SHARKS_FILE   Path to a file containing Manta-wide shark
+ *     (required)       configuration.  This should be a JSON object with keys
+ *                      for each datacenter.  The values should be an array of
+ *                      objects, one for each shark in that datacenter, with
+ *                      "datacenter" and "manta_storage_id" keys.  This file may
+ *                      omit shards that the user has requested that we avoid
+ *                      using for the rebalance operation.
+ *
+ * The input records are JSON objects of the same form stored in the "manta"
+ * Moray bucket.
  */
 
 var getopt = require('posix-getopt');
