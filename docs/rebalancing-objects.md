@@ -27,7 +27,7 @@ mako nodes, but within the same datacenter.
 It is expected that common need for rebalancing is when all objects need to be
 moved from a mako node (dying host).  This example walks you through doing that.
 
-First, find the manta_storage_id for the host that is problematic and verify
+First, find the manta\_storage\_id for the host that is problematic and verify
 that:
 
 1. The mako node is receiving no more writes.
@@ -76,7 +76,7 @@ is exactly this list:
     $ mget /poseidon/stor/manta_rebalance/assets/sharks.json | json
 
 If the full list isn't being populated or if there are extra nodes, you should
-debug by looking at the manta_storage table.  *Warning*: The picking algorithm
+debug by looking at the manta\_storage table.  *Warning*: The picking algorithm
 is really dumb- it chooses a random available node, regardless if it has room or
 not.  We'll have to modify this in the future if/when we need to.
 
@@ -132,7 +132,28 @@ Clean up any crufty data.  Once all mako nodes have processed their files you
 should run a job that verifies that there are no more references to the dying
 mako node in the live tables.  Here is an example job:
 
-    $ TODO
+    $ mfind -t o -n 'manta-.*.gz' /poseidon/stor/manatee_backups/{1,2,3}.moray.staging.joyent.us/2015/03/12/00 | \
+        mjob create -s /poseidon/stor/manta_rebalance/assets/mola.tar.gz \
+        --init='tar xzf /assets/poseidon/stor/manta_rebalance/assets/mola.tar.gz && npm install -g json' \
+        -m 'gzcat $MANTA_INPUT_FILE | ./mola/build/node/bin/node ./mola/bin/pg_transform.js | \
+        json  -ga -E '"'"'this.x = this._value.sharks ? \
+        this._value.sharks.map(function (s) { return (s.manta_storage_id); }).join(",") \
+        : "(directory)"; '"'"' _key _value.type _value.contentLength x | grep "4\\.stor"'
+
+In the above example job, you'll have to replace:
+
+- The numbers of the Moray index shards (`{1,2,3}`)
+- The name of your Manta deployment (`staging.joyent.us`)
+- The date part (`2015/03/12/00`)
+- The storage id being searched-for (`4\\.stor`).
+
+You may get errors from this job because "grep" will exit non-zero if it finds
+nothing (which is what we want).  Check the stderr for each error to make sure
+there was no other problem.  Then check the contents of the output files.  They
+should generally be empty, except for one entry for the object
+/your\_poseidon\_uuid/stor/mako/4.stor.staging.joyent.us.  Importantly, the last
+column for any found results should _not_ contain the name of the mako that you
+removed, as that would indicate the mako is still in use.
 
 # Known errors
 
@@ -192,7 +213,7 @@ but the file wasn't fully transferred.  To verify, get the moray record:
 
 Then list the file in the local temp directory:
 
-    mako$ ll /manta/rebalance_tmp/[objectId]
+    mako$ ls -l /manta/rebalance_tmp/[objectId]
 
 If the sizes don't match, then checking the MD5 saved us.  The record can be
 safely reprocessed or you can just run rebalance again.  If they do match,
@@ -221,9 +242,9 @@ reproducible then it's bug fixing time.
 
     /poseidon/stor/manatee_backups/[shard]/[date]/manta-[date].gz
 
-2. Current set of mako nodes.  The kick_off_rebalance app will automatically
+2. Current set of mako nodes.  The kick\_off\_rebalance app will automatically
    pull this list from the `manta_storage` table in moray.  You can optionally
-   give a set of manta_storage_ids that will be ignored so that any rebalanced
+   give a set of manta\_storage\_ids that will be ignored so that any rebalanced
    objects won't land on those hosts.
 
 ## Phase 1: Marlin job
