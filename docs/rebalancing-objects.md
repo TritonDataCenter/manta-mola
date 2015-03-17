@@ -10,15 +10,19 @@ apisections:
 -->
 
 <!--
-    Copyright (c) 2014, Joyent, Inc.
+    Copyright (c) 2015, Joyent, Inc.
 -->
 
 # Overview
 
-Unfortunately there have been some screw-ups in manta where it has been
-necessary to move objects from one mako to another.  This was originally written
+Unfortunately there have been some operational errors in Manta where it has been
+necessary to move objects from one Mako to another.  This was originally written
 when we ran into a situation where all objects were being put on two different
-mako nodes, but within the same datacenter.
+Mako nodes, but within the same datacenter.
+
+If you're planning to actually remove a Mako zone, see the [shark
+removal](shark-removal.md) procedure.
+
 
 # Performing a rebalance
 
@@ -34,17 +38,29 @@ that:
 2. nginx is still up and running as well as registrar in the storage zone.
 3. The latest moray dumps have been taken *after* the last write.
 
-Like so:
+On newer versions of Mako, you can use the built-in manta-mako-adm tool to
+disable writes to this Mako:
 
-    [root@409edbbe (storage) ~]$ svcadm disable minnow
-    [root@409edbbe (storage) ~]$ json -f /opt/smartdc/mako/etc/mako_rebalancer_config.json manta_storage_id
-    3.stor.coal.joyent.us
-    [root@27b5d86a (moray) ~]$ (set -o pipefail; \
-        export KEY=$(findobjects manta_storage '(manta_storage_id=3.stor.coal.joyent.us)' | json key); \
-        getobject manta_storage $KEY | json value | \
-            json -e 'this.timestamp = 1356998400000' > new.json && \
-        putobject -d "$(cat new.json)" manta_storage $KEY && echo okay)
+    [root@8e89b3de (storage) ~]$ /opt/smartdc/mako/bin/manta-mako-adm show
+    mako "3.stor.emy-10.joyent.us": writes enabled
+
+    [root@8e89b3de (storage) ~]$ /opt/smartdc/mako/bin/manta-mako-adm disable-writes
+    manta-mako-adm: disabled minnow and wrote updated record
+    NOTE: This change will not persist if this mako zone is upgraded.
+    mako "3.stor.emy-10.joyent.us": writes disabled
+    NOTE: You may want to restart all muskie (webapi) instances
+    in order to pick up this change immediately.
+
+If you're on an older zone that doesn't have this command, you can copy it
+directly from the manta-mako repo.  It's a self-contained bash script.
+
+As the message indicates, you'll want to restart muskie services in all Muskie
+zones:
+
     [root@8d626e7f (webapi) ~]$ svcadm restart *muskie*
+
+and make sure the latest Moray dumps were saved after the last write:
+
     [root@1bf3106e (ops) ~]$ mls -l /poseidon/stor/manatee_backups/1.moray.coal.joyent.us/2014/01/14/15/manta-2014-01-14-15-05-11.gz
     -rwxr-xr-x 1 poseidon        276543 Jan 14 15:40 manta-2014-01-14-15-05-11.gz
     [root@1bf3106e (ops) ~]$ date
