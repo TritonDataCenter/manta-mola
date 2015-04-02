@@ -1,0 +1,20 @@
+#!/bin/bash
+
+#
+# check-wrasse-behind: invoked by amon to probe whether wrasse (the job
+# archiver) is healthy or falling behind.  Exits 0 if wrasse is okay.  Exits
+# non-zero otherwise (including if it's unable to tell).
+#
+# This wrapper calls into the adjacent JavaScript version after setting up the
+# environment appropriately and invoking "mrjob archive-status -j".
+#
+
+set -o pipefail
+set -o errexit
+
+#
+# MORAY_URL is configured by root's .bashrc to point to the Marlin shard.
+#
+source /root/.bashrc
+exec mrjob archive-status --json | \
+    $(which node) "$(dirname ${BASH_SOURCE[0]})/check-wrasse-behind.js"

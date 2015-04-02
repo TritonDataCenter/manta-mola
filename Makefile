@@ -31,8 +31,10 @@ NPM             := npm
 #
 # Files
 #
+BASH_FILES	 = amon/checks/check-wrasse-behind
 DOC_FILES        = $(shell find docs -name '*.md' | cut -d '/' -f 2)
-JS_FILES        := $(shell ls *.js) $(shell find lib test bin -name '*.js')
+JS_FILES        := $(shell ls *.js) \
+    $(shell find lib test bin amon/checks -name '*.js')
 JSL_CONF_NODE    = tools/jsl.node.conf
 JSL_FILES_NODE   = $(JS_FILES)
 JSSTYLE_FILES    = $(JS_FILES)
@@ -100,7 +102,8 @@ release: all docs $(SMF_MANIFESTS)
 	@touch $(RELSTAGEDIR)/site/.do-not-delete-me
 	@mkdir -p $(RELSTAGEDIR)/root
 	@mkdir -p $(RELSTAGEDIR)/root/opt/smartdc/$(NAME)/etc
-	cp -r   $(ROOT)/bin \
+	cp -r   $(ROOT)/amon \
+		$(ROOT)/bin \
 		$(ROOT)/boot \
 		$(ROOT)/build \
 		$(ROOT)/index.js \
