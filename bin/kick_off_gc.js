@@ -165,7 +165,7 @@ function parseOptions() {
 
         opts.gcMapDisk = opts.gcMapDisk || 32;
         opts.gcReduceMemory = opts.gcReduceMemory || 8192;
-        opts.gcReduceDisk = opts.gcReduceDisk || 16;
+        opts.gcReduceDisk = opts.gcReduceDisk || 32;
         opts.marlinPathToAsset = opts.assetObject.substring(1);
         opts.marlinAssetObject = opts.assetObject;
 
