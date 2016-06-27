@@ -77,7 +77,14 @@ run a few hours after midnight to allow those jobs to finish.
 # Timeline
 
 Each of the processes above is given some fixed time to complete work for the
-day.  This is the "authoritative" timeline:
+day.  This is the "authoritative" timeline.  Jobs listed in parenthesis run on
+the following day.
+
+The job name can be cross referenced to the executed job by cross referencing
+the [cron configuration][cron] and the [manifest file][manifest].
+
+[cron]: ../boot/setup.sh
+[manifest]: https://github.com/joyent/manta-mackerel/blob/master/sapi_manifests/mackerel-jobs/template
 
 ```
 | 00 | 01 | 02 | 03 | 04 | 05 | 06 | 07 | 08 | 09 | 10 | 11 | 12 | 13 | 14 | 15 | 16 | 17 | 18 | 19 | 20 | 21 | 22 | 23 |
@@ -92,9 +99,21 @@ day.  This is the "authoritative" timeline:
 |                                                      |gc-l|inks
 |                                                           |moray-gc
 |                                                           |mako-gc
-|                   |(daily-metering)
+|    |(daily-metering)
 |----|----|----|----|----|----|----|----|----|----|----|----|----|----|----|----|----|----|----|----|----|----|----|----|
 | 00 | 01 | 02 | 03 | 04 | 05 | 06 | 07 | 08 | 09 | 10 | 11 | 12 | 13 | 14 | 15 | 16 | 17 | 18 | 19 | 20 | 21 | 22 | 23 |
 ```
+
+| Manta Job Name          | Cron job command         | Type        | Start Time |
+| ----------------------- | ------------------------ | ----------- | ----------:|
+| postgres                | (in manatee zone)        | maintenance |      00:00 |
+| sql-to-json             | kick_off_pg_transform.js | meta        |      02:00 |
+| gc                      | kick_off_gc.js           | maintenance |      08:05 |
+| storage-hourly-metering | meter-storage.sh         | metering    |      08:15 |
+| gc-links                | gc_create_links.js       | maintenance |      11:10 |
+| moray-gc                | moray_gc.js              | maintenance |      12:15 |
+| audit                   | kick_off_audit.js        | maintenance |      14:20 |
+| [none]                  | daily.sh                 | metering    |      14:55 |
+| (daily-metering)        | meter-previous-day.sh    | metering    |      01:00 |
 
 Also see MANTA-2438.

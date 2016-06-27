@@ -61,7 +61,7 @@ function manta_setup_mola {
     echo '15 08 * * * cd /opt/smartdc/mackerel && ./scripts/cron/meter-storage.sh >>/var/log/mackerel.log 2>&1' >>$crontab
     echo '17 * * * * cd /opt/smartdc/mackerel && ./scripts/cron/meter-compute.sh >>/var/log/mackerel.log 2>&1' >>$crontab
     echo '19 * * * * cd /opt/smartdc/mackerel && ./scripts/cron/meter-request.sh >>/var/log/mackerel.log 2>&1' >>$crontab
-    echo '30 04 * * * cd /opt/smartdc/mackerel && ./scripts/cron/meter-previous-day.sh >>/var/log/mackerel.log 2>&1' >>$crontab
+    echo '30 01 * * * cd /opt/smartdc/mackerel && ./scripts/cron/meter-previous-day.sh >>/var/log/mackerel.log 2>&1' >>$crontab
     echo '55 * * * * cd /opt/smartdc/mackerel && ./scripts/format/rep.sh' >>$crontab
     echo '55 14 * * * cd /opt/smartdc/mackerel && ./scripts/format/daily.sh' >>$crontab
     gsed -i -e "s|REDIS_HOST|$(mdata-get auth_cache_name)|g" /opt/smartdc/mackerel/etc/config.js
