@@ -82,7 +82,7 @@ function parseOptions() {
         // command line, and use the defaults if all else fails.
         var opts = MOLA_CONFIG_OBJ;
         opts.shards = opts.shards || [];
-        var parser = new getopt.BasicParser('a:b:m:no:p:',
+        var parser = new getopt.BasicParser('a:b:m:no:p:y:',
                                             process.argv);
         while ((option = parser.getopt()) !== undefined && !option.error) {
                 switch (option.option) {
