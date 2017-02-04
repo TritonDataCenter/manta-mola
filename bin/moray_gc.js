@@ -7,24 +7,36 @@
  */
 
 /*
- * Copyright (c) 2014, Joyent, Inc.
+ * Copyright (c) 2017, Joyent, Inc.
  */
 
+/*
+ * This program streams one object at a time per shard, up to a limit.  We need
+ * to allow at least one, and perhaps several, concurrent HTTP connections.
+ * See the comments in "maxsockets.js" for more information.
+ */
+var SHARD_PARALLELISM = 32;
+require('../lib/maxsockets')(SHARD_PARALLELISM * 4);
+
+
+var assert = require('assert-plus');
 var bunyan = require('bunyan');
 var exec = require('child_process').exec;
 var fs = require('fs');
-var getopt = require('posix-getopt');
 var lib = require('../lib');
 var manta = require('manta');
-var path = require('path');
+var vasync = require('vasync');
+var verror = require('verror');
+var stream = require('stream');
 
+var VE = verror.VError;
 
-///--- Globals
 
 var LOG = bunyan.createLogger({
         level: (process.env.LOG_LEVEL || 'info'),
         name: 'moray_gc',
-        stream: process.stdout
+        stream: process.stdout,
+        serializers: bunyan.stdSerializers
 });
 var MANTA_CONFIG = (process.env.MANTA_CONFIG ||
                     '/opt/smartdc/common/etc/config.json');
@@ -33,7 +45,7 @@ var MANTA_USER = MANTA_CLIENT.user;
 var MORAY_CLEANUP_PATH = '/' + MANTA_USER + '/stor/manta_gc/moray';
 var PID_FILE = '/var/tmp/moray_gc.pid';
 var CRON_START = new Date();
-var MORAY_CLEANER = lib.createMorayCleaner({ log: LOG });
+var MORAY_CLEANER = lib.createMorayCleaner({ log: LOG, batchSize: 1000 });
 MORAY_CLEANER.on('error', function (err) {
         LOG.fatal(err);
         var returnCode = auditCron(err);
@@ -41,141 +53,217 @@ MORAY_CLEANER.on('error', function (err) {
 });
 
 
+/*
+ * Called for each Manta object created by the garbage collection job.  This
+ * function streams the contents of the input object from Manta, processing
+ * each directive in the object to remove old records from the particular Moray
+ * shard.
+ */
+function cleanShardOneObject(log, shard, input, cb) {
+        assert.object(log, 'log');
+        assert.string(shard, 'shard');
+        assert.string(input, 'input');
+        assert.func(cb, 'cb');
 
-///--- Helpers
+        log.info('deleting moray records listed in cleanup object');
 
-function morayCleanShard(shard, obj, cb) {
-        var dir = MORAY_CLEANUP_PATH + '/' + shard;
-        var o = dir + '/' + obj.name;
-
-        LOG.info({ shard: shard, object: o }, 'Processing object.');
-
-        MANTA_CLIENT.get(o, {}, function (err, stream) {
+        MANTA_CLIENT.get(input, {}, function (err, strom) {
                 if (err) {
-                        cb(err);
+                        cb(VE(err, 'get "%s"', input));
                         return;
                 }
 
-                //The Moray Cleaner will unpause.
-                stream.pause();
-
-                MORAY_CLEANER.clean({
+                /*
+                 * The Moray cleaner stream knows how to interpret the contents
+                 * of the garbage collection input objects.  See the comments
+                 * in "lib/moray_cleaner.js" for more information.
+                 */
+                var mcs = MORAY_CLEANER.cleanStream({
                         shard: shard,
-                        stream: stream,
-                        object: o
-                }, function () {
-                        MANTA_CLIENT.unlink(o, {}, function (err2) {
-                                if (err2) {
-                                        cb(err2);
+                        object: input
+                });
+
+                mcs.once('error', function (mcsErr) {
+                        cb(VE(mcsErr, 'cleanStream "%s"', input));
+                });
+                mcs.once('workComplete', function () {
+                        MANTA_CLIENT.unlink(input, {}, function (ulErr) {
+                                if (ulErr) {
+                                        cb(VE(ulErr, 'unlink "%s"', input));
                                         return;
                                 }
-                                LOG.info({ obj: o }, 'Done with obj.');
+                                log.info('cleanup object complete');
                                 cb();
                         });
                 });
-        });
-}
 
-function morayCleanObjects(shard, objects, cb) {
-        if (objects.length < 1) {
-                cb();
-                return;
-        }
-
-        var obj = objects.shift();
-        LOG.info({ shard: shard, obj: obj }, 'Going to clean shard.');
-        morayCleanShard(shard, obj, function (err) {
-                if (err) {
-                        cb(err);
-                        return;
-                }
-                morayCleanObjects(shard, objects, cb);
+                strom.pipe(mcs);
         });
 }
 
 
-function cleanShard(shard, cb) {
-        var dir = MORAY_CLEANUP_PATH + '/' + shard;
-        LOG.info({ shard: shard, dir: dir }, 'Cleaning up shard.');
-        MANTA_CLIENT.ls(dir, function (err, res) {
+/*
+ * For a particular Moray shard, look in the cleanup directory: "dir", a Manta
+ * path.  This directory contains objects that are the output of the garbage
+ * collection Manta job.  Each object contains a list of Moray records marked
+ * for deletion.
+ */
+function cleanShardDirectory(log, shard, dir, cb) {
+        assert.object(log, 'log');
+        assert.string(shard, 'shard');
+        assert.string(dir, 'dir');
+        assert.func(cb, 'cb');
+
+        log.info('cleaning shard');
+
+        var errs = [];
+        var finished = false;
+        var outstanding = false;
+        var nobjects = 0;
+
+        var finish = function (err) {
                 if (err) {
-                        cb(err);
-                        return;
+                        errs.push(err);
                 }
 
-                var objects = [];
+                if (finished || outstanding) {
+                        /*
+                         * Don't call the callback twice.  If the list stream
+                         * fails while a call to "cleanShardOneObject()" is
+                         * in progress, don't call the callback until that
+                         * operation completes.
+                         */
+                        return;
+                }
+                finished = true;
 
-                res.on('object', function (obj) {
-                        objects.push(obj);
-                });
+                if (errs.length === 0) {
+                        log.info('cleaned %d shard objects', nobjects);
+                        setImmediate(cb);
+                } else {
+                        log.info('cleaned %d shard objects (before error)',
+                            nobjects);
+                        setImmediate(cb, errs.length === 1 ? errs[0] :
+                            new verror.MultiError(errs));
+                }
+        };
 
-                res.on('error', function (err2) {
-                        cb(err2);
-                });
+        var ls = MANTA_CLIENT.createListStream(dir, { type: 'object' });
+        ls.on('error', function (err) {
+                finish(VE(err, 'listing "%s"', dir));
+        });
 
-                res.on('end', function () {
-                        if (objects.length === 0) {
-                                LOG.info({ shard: shard },
-                                         'Shard already clean, ' +
-                                         'no objects found.');
-                                cb();
+        var w = new stream.Writable({ objectMode: true, highWaterMark: 0 });
+        w.on('error', finish);
+        w.on('finish', function () {
+                finish();
+        });
+
+        /*
+         * For each directory entry from the list stream, invoke
+         * "cleanShardOneObject()" to download that object and process its
+         * contents.
+         */
+        w._write = function (ent, _, next) {
+                if (finished)
+                        return;
+
+                assert.strictEqual(ent.type, 'object', 'wanted objects only');
+                assert.strictEqual(ent.parent, dir, 'unexpected directory');
+
+                var input = dir + '/' + ent.name;
+
+                outstanding = true;
+                cleanShardOneObject(log.child({ input: input }), shard, input,
+                    function (err) {
+                        outstanding = false;
+
+                        if (err) {
+                                next(VE(err, 'cleanShardOneObject: ' +
+                                    'shard "%s", input "%s"', shard,
+                                    input));
                                 return;
                         }
-                        morayCleanObjects(shard, objects, function (err3) {
-                                cb(err3);
-                        });
+
+                        nobjects++;
+                        next();
                 });
-        });
+        };
+
+        ls.pipe(w);
 }
 
 
-function cleanShards(shards, cb) {
-        if (shards.length < 1) {
-                cb();
-                return;
-        }
-
-        var shard = shards.shift();
-        cleanShard(shard, function (err) {
-                if (err) {
-                        cb(err);
-                        return;
-                }
-                cleanShards(shards, cb);
-        });
-}
-
-
+/*
+ * This routine lists entries in the top-level Moray cleanup directory,
+ * MORAY_CLEANUP_PATH.  Each child directory represents a Moray shard for which
+ * we may have clean up work to do.
+ */
 function startGc(cb) {
-        MANTA_CLIENT.ls(MORAY_CLEANUP_PATH, {}, function (err, res) {
-                if (err) {
-                        cb(err);
+        var errs = [];
+        var q = vasync.queuev({
+                worker: function (shard, next) {
+                        assert.string(shard, 'shard');
+                        assert.func(next, 'next');
+
+                        var dir = MORAY_CLEANUP_PATH + '/' + shard;
+                        var log = LOG.child({ shard: shard, dir: dir });
+
+                        cleanShardDirectory(log, shard, dir, function (err) {
+                                if (err) {
+                                        next(VE(err, 'cleanShardDirectory "%s"',
+                                            shard));
+                                        return;
+                                }
+
+                                next();
+                        });
+                },
+                concurrency: SHARD_PARALLELISM
+        });
+        q.on('end', function () {
+                if (errs.length === 0) {
+                        cb();
                         return;
                 }
 
-                var shards = [];
+                cb(errs.length === 1 ? errs[0] : new verror.MultiError(errs));
+        });
+        var qCallback = function (qErr) {
+                if (!qErr)
+                        return;
 
-                res.on('directory', function (dir) {
-                        var shard = dir.name;
-                        shards.push(shard);
-                });
+                errs.push(qErr);
+                LOG.error({ err: qErr }, 'shard cleaning failure; draining ' +
+                    'already issued tasks');
+                q.kill();
+        };
 
-                res.on('error', function (err2) {
-                        if (err2 && err2.name === 'ResourceNotFoundError') {
-                                LOG.info({ path: MORAY_CLEANUP_PATH },
-                                         'No directories yet for manta gc.');
-                                cb();
-                                return;
-                        }
-                        cb(err2);
-                });
+        var ls = MANTA_CLIENT.createListStream(MORAY_CLEANUP_PATH,
+            { type: 'directory' });
 
-                res.on('end', function () {
-                        LOG.info({ shards: shards }, 'Going to clean shards.');
-                        cleanShards(shards, function (err2) {
-                                cb(err2);
-                        });
-                });
+        ls.on('error', function (err) {
+                if (err.name === 'ResourceNotFoundError') {
+                        LOG.info({ path: MORAY_CLEANUP_PATH },
+                            'No directories yet for manta gc.');
+                        q.close();
+                        return;
+                }
+
+                qCallback(VE(err, 'listing "%s"', MORAY_CLEANUP_PATH));
+        });
+        ls.on('readable', function () {
+                var dir;
+
+                while ((dir = ls.read()) !== null) {
+                        assert.strictEqual(dir.type, 'directory',
+                            'wanted directories only');
+
+                        q.push(dir.name, qCallback);
+                }
+        });
+        ls.on('end', function () {
+                q.close();
         });
 }
 
@@ -186,7 +274,12 @@ function checkAlreadyRunning(cb) {
                 fs.writeFileSync(PID_FILE, process.pid, 'utf8');
                 startGc(function (err) {
                         cleanupPidFile(function () {
-                                cb(err);
+                                if (err) {
+                                        cb(VE(err, 'startGc'));
+                                        return;
+                                }
+
+                                cb();
                         });
                 });
         }
@@ -263,8 +356,6 @@ function auditCron(err) {
         return (audit.cronFailed);
 }
 
-
-///--- Main
 
 checkAlreadyRunning(function (err) {
         if (err) {
