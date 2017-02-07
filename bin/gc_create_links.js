@@ -7,21 +7,28 @@
  */
 
 /*
- * Copyright (c) 2014, Joyent, Inc.
+ * Copyright (c) 2017, Joyent, Inc.
  */
+
+/*
+ * The maximum number of HTTP connections was extremely limited in older
+ * versions of Node.  Raise the limit to cover concurrent processing of
+ * a potentially large number of Moray shards.
+ */
+require('../lib/maxsockets')(256);
 
 var assert = require('assert-plus');
 var bunyan = require('bunyan');
 var common = require('../lib').common;
-var fs = require('fs');
 var getopt = require('posix-getopt');
 var manta = require('manta');
 var path = require('path');
 var vasync = require('vasync');
+var stream = require('stream');
+var lstream = require('lstream');
 
+var VE = require('verror').VError;
 
-
-///--- Global Objects
 
 var NAME = 'moray_gc_create_links';
 var LOG = bunyan.createLogger({
@@ -41,16 +48,8 @@ var AUDIT = {
         'count': 0,
         'startTime': new Date()
 };
+var DIR_CACHE = {};
 
-
-
-///--- Global Constants
-
-var MP = '/' + MANTA_USER + '/stor';
-
-
-
-///--- Helpers
 
 function parseOptions() {
         var option;
@@ -95,72 +94,146 @@ function deleteObject(objPath, cb) {
 }
 
 
+function plfCreateLink(log, linkObj, done) {
+        assert.object(log, 'log');
+        assert.object(linkObj, 'linkObj');
+        assert.string(linkObj.from, 'linkObj.from');
+        assert.string(linkObj.to, 'linkObj.to');
+        assert.func(done, 'done');
+
+        log.info({ linkObj: linkObj }, 'linking object');
+
+        MANTA_CLIENT.ln(linkObj.from, linkObj.to, function (linkErr) {
+                if (linkErr) {
+                        done(VE(linkErr, 'mln: from "%s" to "%s"',
+                            linkObj.from, linkObj.to));
+                        return;
+                }
+
+                done();
+        });
+}
+
+
+function plfCreateDirectory(log, dirName, done) {
+        assert.object(log, 'log');
+        assert.string(dirName, 'dirName');
+        assert.func(done, 'done');
+
+        var dc = DIR_CACHE[dirName];
+
+        if (!dc) {
+                /*
+                 * This directory has not yet been checked or created.
+                 */
+                dc = DIR_CACHE[dirName] = {
+                        dc_exists: false,
+                        dc_callbacks: [ done ]
+                };
+        } else if (dc.dc_exists) {
+                /*
+                 * This directory definitely exists already.
+                 */
+                setImmediate(done);
+                return;
+        } else {
+                /*
+                 * Wait for this directory to be processed by a mkdirp()
+                 * operation already underway.
+                 */
+                dc.dc_callbacks.push(done);
+                return;
+        }
+
+        log.info({ dirName: dirName }, 'creating directory');
+
+        MANTA_CLIENT.mkdirp(dirName, function (dirErr) {
+                var wrapped = null;
+
+                if (dirErr) {
+                        wrapped = VE(dirErr, 'mmkdirp "%s"', dirName);
+                        delete DIR_CACHE[dirName];
+                } else {
+                        dc.dc_exists = true;
+                }
+
+                dc.dc_callbacks.forEach(function (otherNext) {
+                        setImmediate(otherNext, wrapped);
+                });
+                dc.dc_callbacks = null;
+        });
+}
+
+
 function processLinkFile(objPath, cb) {
-        LOG.info({ objPath: objPath }, 'processing object');
-        var opts = {
-                'path': objPath,
-                'client': MANTA_CLIENT
-        };
-        common.getObject(opts, function (err, data) {
+        var log = LOG.child({ objPath: objPath });
+
+        log.info('processing link file');
+
+        var s = MANTA_CLIENT.createReadStream(objPath);
+        var sres = null;
+        var done = false;
+
+        var finish = function (err) {
+                if (done) {
+                        return;
+                }
+                done = true;
+
                 if (err) {
+                        if (sres !== null) {
+                                sres.destroy();
+                        }
+
                         cb(err);
                         return;
                 }
 
-                var lines = data.split('\n');
-                var dirs = [];
-                var links = [];
-                for (var i = 0; i < lines.length; ++i) {
-                        var line = lines[i];
-                        if (line === '') {
-                                continue;
-                        }
-                        var parts = line.split(' ');
-                        if (common.startsWith(line, 'mmkdir')) {
-                                dirs.push(parts[1]);
-                        } else if (common.startsWith(line, 'mln')) {
-                                links.push({
-                                        from: parts[1],
-                                        to: parts[2]
-                                });
-                        } else {
-                                LOG.error({ objPath: objPath },
-                                          'Error with object');
-                                cb(new Error(objPath +
-                                             ' contains a bad line: ' +
-                                             line));
-                                return;
-                        }
+                /*
+                 * As processing completed successfully, we can delete
+                 * the input file.
+                 */
+                log.info('link file processing complete');
+                deleteObject(objPath, cb);
+        };
+
+        s.on('open', function (res) {
+                sres = res;
+        });
+        s.on('error', function (err) {
+                finish(VE(err, 'streaming "%s"', objPath));
+        });
+
+        var w = new stream.Writable({ objectMode: true, highWaterMark: 0 });
+        w._write = function (line, _, next) {
+                assert.string(line, 'ch');
+                assert.func(next, 'next');
+
+                if (done || line === '') {
+                        setImmediate(next);
+                        return;
                 }
 
-                //Create dirs, then link, then delete.
-                vasync.forEachParallel({
-                        func: MANTA_CLIENT.mkdirp.bind(MANTA_CLIENT),
-                        inputs: dirs
-                }, function (err2, results) {
-                        if (err2) {
-                                cb(err2);
-                                return;
-                        }
+                var parts = line.split(' ');
 
-                        vasync.forEachParallel({
-                                func: function link(linkObj, subcb) {
-                                        LOG.info({ linkObj: linkObj },
-                                                 'linking object');
-                                        MANTA_CLIENT.ln(linkObj.from,
-                                                        linkObj.to, subcb);
-                                },
-                                inputs: links
-                        }, function (err3, results2) {
-                                if (err3) {
-                                        cb(err3);
-                                        return;
-                                }
+                if (parts.length === 2 && parts[0] === 'mmkdir') {
+                        plfCreateDirectory(log, parts[1], next);
+                } else if (parts.length === 3 && parts[0] === 'mln') {
+                        plfCreateLink(log, { from: parts[1], to: parts[2] },
+                            next);
+                } else {
+                        next(VE('invalid line: "%s"', line));
+                }
+        };
 
-                                deleteObject(objPath, cb);
-                        });
-                });
+        w.on('error', function (err) {
+                finish(VE(err, 'processing "%s"', objPath));
         });
+        w.on('finish', function () {
+                finish();
+        });
+
+        s.pipe(new lstream()).pipe(w);
 }
 
 
@@ -204,7 +277,16 @@ function findAndVerifyJob(objPath, cb) {
                         return;
                 }
 
-                processLinkFile(objPath, cb);
+                processLinkFile(objPath, function (plfErr) {
+                        if (plfErr) {
+                                LOG.error({
+                                        err: plfErr,
+                                        objPath: objPath
+                                }, 'failed to process link file');
+                        }
+
+                        cb(plfErr);
+                });
                 return;
         });
 }
