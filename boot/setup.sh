@@ -7,7 +7,7 @@
 #
 
 #
-# Copyright (c) 2014, Joyent, Inc.
+# Copyright (c) 2017, Joyent, Inc.
 #
 
 set -o xtrace
@@ -52,9 +52,13 @@ function manta_setup_mola {
     mkdir -p /opt/smartdc/common/bundle
     cd /opt/smartdc && tar -chzf /opt/smartdc/common/bundle/mola.tar.gz mola; cd -
     echo '0 2 * * * cd /opt/smartdc/mola && ./build/node/bin/node ./bin/kick_off_pg_transform.js >>/var/log/mola-pg-transform.log 2>&1' >>$crontab
+    echo '0 3 * * * cd /opt/smartdc/mola && ./build/node/bin/node ./bin/kick_off_mpu_pg_transform.js >>/var/log/mola-mpu-pg-transform.log 2>&1' >>$crontab
+
     echo '5 8 * * * cd /opt/smartdc/mola && ./build/node/bin/node ./bin/kick_off_gc.js >>/var/log/mola.log 2>&1' >>$crontab
+    echo '5 9 * * * cd /opt/smartdc/mola && ./build/node/bin/node ./bin/kick_off_mpu_gc.js >>/var/log/mola-mpu-gc.log 2>&1' >>$crontab
     echo '10 11 * * * cd /opt/smartdc/mola && ./build/node/bin/node ./bin/gc_create_links.js >>/var/log/mola-gc-create-links.log 2>&1' >>$crontab
     echo '15 12 * * * cd /opt/smartdc/mola && ./build/node/bin/node ./bin/moray_gc.js >>/var/log/mola-moray-gc.log 2>&1' >>$crontab
+    echo '15 13 * * * cd /opt/smartdc/mola && ./build/node/bin/node ./bin/kick_off_mpu_cleanup.js >>/var/log/mola-mpu-cleanup.log 2>&1' >>$crontab
     echo '20 14 * * * cd /opt/smartdc/mola && ./build/node/bin/node ./bin/kick_off_audit.js >>/var/log/mola-audit.log 2>&1' >>$crontab
 
     #Metering
@@ -70,9 +74,12 @@ function manta_setup_mola {
     [[ $? -eq 0 ]] || fatal "Unable import crons"
 
     manta_add_logadm_entry "mola-pg-transform" "/var/log" "exact"
+    manta_add_logadm_entry "mola-mpu-pg-transform" "/var/log" "exact"
     manta_add_logadm_entry "mola" "/var/log" "exact"
+    manta_add_logadm_entry "mola-mpu-gc" "/var/log" "exact"
     manta_add_logadm_entry "mola-gc-create-links" "/var/log" "exact"
     manta_add_logadm_entry "mola-moray-gc" "/var/log" "exact"
+    manta_add_logadm_entry "mola-mpu-cleanup" "/var/log" "exact"
     manta_add_logadm_entry "mola-audit" "/var/log" "exact"
     manta_add_logadm_entry "mackerel" "/var/log" "exact"
 

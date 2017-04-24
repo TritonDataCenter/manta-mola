@@ -25,7 +25,7 @@
 #
 # Tools
 #
-NODEUNIT        := ./node_modules/.bin/nodeunit
+NODEUNIT        := ./node_modules/.bin/nodeunit --reporter=tap
 NPM             := npm
 
 #
@@ -86,7 +86,7 @@ CLEAN_FILES += $(NODEUNIT) ./node_modules/nodeunit
 .PHONY: test
 test: $(NODEUNIT)
 	mkdir -p ./tmp
-	find test/ -name '*.test.js' | xargs -n 1 $(NODEUNIT)
+	find test/ -name 'mpu_garbage_collector.test.js' | xargs -n 1 $(NODEUNIT)
 
 .PHONY: scripts
 scripts: deps/manta-scripts/.git

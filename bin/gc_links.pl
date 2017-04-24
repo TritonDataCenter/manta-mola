@@ -14,9 +14,8 @@
 # mako.  This should go away post-haste after the stream to many mpipes
 # is written.
 ###############################################################################
-
 if (@ARGV < 3) {
-    print "Usage: ".$ENV{"_"}." [manta_user] [output file] " +
+    print "Usage: ".$ENV{"_"}." [manta_user] [output file] " .
         "[manta object prefix]\n";
     exit 1;
 }
