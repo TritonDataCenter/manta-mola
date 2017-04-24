@@ -10,7 +10,7 @@ apisections:
 -->
 
 <!--
-    Copyright (c) 2014, Joyent, Inc.
+    Copyright (c) 2018, Joyent, Inc.
 -->
 
 # Overview
@@ -170,7 +170,7 @@ A cron runs in the cron zone that will periodically look in:
     /poseidon/stor/manta_gc/all/do/
 
 Download, and execute the instructions.  Once the links are successfully created,
-the links file is deleted.  The executable is in `mola/bin/gc_create_links.sh`.
+the links file is deleted.  The executable is in `mola/bin/gc_create_links.js`.
 
 ## Phase 3: Moray Cleanup
 

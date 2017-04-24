@@ -10,7 +10,7 @@ apisections:
 -->
 
 <!--
-    Copyright (c) 2014, Joyent, Inc.
+    Copyright (c) 2018, Joyent, Inc.
 -->
 
 # Overview
@@ -38,6 +38,9 @@ Here is a json representation of the dependency tree:
                     "moray-gc": null,
                     "mako-gc": null
                 }
+            },
+            "mpu-gc": {
+                "mpu-cleanup": null
             }
         }
     }
@@ -64,6 +67,10 @@ And a description of each of those:
 * mako-gc: Runs on each Mako, takes output from gc/gc-create-links to find and
   tombstone dead objects.  Also removes object tombstoned some number of days
   ago (21 days as of this writing).
+* mpu-gc: Runs as a Manta job. Takes output from sql-to-json to determine what
+  records need to be garbage collected as a result of multipart uploads.
+* mpu-cleanup: Runs from the ops zone. Executes the instructions provided by the
+  output of mpu-gc to clean up records related to multipart uploads.
 
 NOTE: There are three additional jobs scheduled in cron that don't aren't
 listed here. They are hourly compute metering, hourly request metering and a
@@ -99,6 +106,9 @@ the [cron configuration][cron] and the [manifest file][manifest].
 |                                                      |gc-l|inks
 |                                                           |moray-gc
 |                                                           |mako-gc
+|
+|                                             |mpu-gc            |
+|                                                                |mpu-cleanup
 |    |(daily-metering)
 |----|----|----|----|----|----|----|----|----|----|----|----|----|----|----|----|----|----|----|----|----|----|----|----|
 | 00 | 01 | 02 | 03 | 04 | 05 | 06 | 07 | 08 | 09 | 10 | 11 | 12 | 13 | 14 | 15 | 16 | 17 | 18 | 19 | 20 | 21 | 22 | 23 |
@@ -109,9 +119,11 @@ the [cron configuration][cron] and the [manifest file][manifest].
 | postgres                | (in manatee zone)        | maintenance |      00:00 |
 | sql-to-json             | kick_off_pg_transform.js | meta        |      02:00 |
 | gc                      | kick_off_gc.js           | maintenance |      08:05 |
+| mpu-gc                  | kick_off_mpu_gc.js       | maintenance |      09:05 |
 | storage-hourly-metering | meter-storage.sh         | metering    |      08:15 |
 | gc-links                | gc_create_links.js       | maintenance |      11:10 |
 | moray-gc                | moray_gc.js              | maintenance |      12:15 |
+| mpu-cleanup             | kick_off_mpu_cleanup.js  | maintenance |      13:15 |
 | audit                   | kick_off_audit.js        | maintenance |      14:20 |
 | [none]                  | daily.sh                 | metering    |      14:55 |
 | (daily-metering)        | meter-previous-day.sh    | metering    |      01:00 |

@@ -5,7 +5,7 @@
 #
 
 #
-# Copyright (c) 2014, Joyent, Inc.
+# Copyright (c) 2018, Joyent, Inc.
 #
 
 #
@@ -25,7 +25,7 @@
 #
 # Tools
 #
-NODEUNIT        := ./node_modules/.bin/nodeunit
+NODEUNIT        := ./node_modules/.bin/nodeunit --reporter=tap
 NPM             := npm
 
 #
