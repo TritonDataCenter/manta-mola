@@ -21,8 +21,11 @@ var util = require('util');
 var vasync = require('vasync');
 
 
-
-/**
+/*
+ *
+ * TODO clean this example up: the -f flag isn't real, and mpipe does not do
+ * `mpipe -p`, which this example kind of implies
+ *
  * Bucketize by fields in a line, uploading to manta via mpipe.  For example,
  * this will bucketize quotes into last/first name files, given a stream
  * of records with lines like:
@@ -31,6 +34,7 @@ var vasync = require('vasync');
  *    -p /$MANTA_USER/stor/quotes/{2}/{1}/quotes.txt
  *
  * The -p is required.  -f defaults to 1, -d defaults to (tab).
+ *
  */
 
 
@@ -311,6 +315,7 @@ DemuxFileStream.prototype._write = function dfsWrite(line, _, done) {
 };
 
 
+///--- Main
 
 var _opts = parseOptions();
 
