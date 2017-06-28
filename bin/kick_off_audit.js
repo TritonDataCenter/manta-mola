@@ -7,7 +7,7 @@
  */
 
 /*
- * Copyright (c) 2014, Joyent, Inc.
+ * Copyright (c) 2017, Joyent, Inc.
  */
 
 var bunyan = require('bunyan');
@@ -17,7 +17,7 @@ var lib = require('../lib');
 var manta = require('manta');
 var path = require('path');
 var sprintf = require('sprintf-js').sprintf;
-
+var VError = require('verror');
 
 
 ///--- Global Objects
@@ -213,16 +213,16 @@ function checkJobResults(job, audit, opts, cb) {
                 return (cb(null));
         }
 
-        //Find the output
+        //Fetch the object containing the list of the job's actual outputs.
         var gopts = {
                 'client': MANTA_CLIENT,
                 'path': '/' + MANTA_CLIENT.user + '/jobs/' + job.id +
                         '/out.txt'
         };
-        lib.common.getObject(gopts, function (err, res) {
-                if (err) {
+        lib.common.getObject(gopts, function (get_err, res) {
+                if (get_err) {
                         //Don't know if it failed or not, so don't audit.
-                        return (cb(err));
+                        return (cb(get_err));
                 }
 
                 LOG.info({ jobId: job.id, outputs: res },
@@ -234,13 +234,23 @@ function checkJobResults(job, audit, opts, cb) {
                         return (cb(null));
                 }
 
-                gopts.path = parts[0];
-                lib.common.getObject(gopts, function (err2, errorLines) {
-                        if (err2) {
+                //Any non-empty output would indicate a failure.
+                var outpath = parts[0];
+                MANTA_CLIENT.info(outpath, function (info_err, info_result) {
+                        if (info_err) {
                                 //Don't know if it failed or not.
-                                return (cb(err2));
+                                cb(new VError(info_err, 'info "%s"', outpath));
+                                return;
                         }
-                        if (errorLines !== '') {
+
+                        if (typeof (info_result.size) != 'number') {
+                                cb(new VError(
+                                    'expected object to have a size: ',
+                                    outpath));
+                                return;
+                        }
+
+                        if (info_result.size !== 0) {
                                 //Bad juju.
                                 LOG.fatal({
                                         job: job,
@@ -248,7 +258,8 @@ function checkJobResults(job, audit, opts, cb) {
                                 }, 'Audit job detected abnormalities between ' +
                                           'mako and moray.');
                         }
-                        return (cb(null));
+
+                        cb(null);
                 });
         });
 }
