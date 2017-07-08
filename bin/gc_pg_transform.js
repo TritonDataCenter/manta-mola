@@ -1,5 +1,4 @@
 #!/usr/bin/env node
-// -*- mode: js -*-
 /*
  * This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
@@ -7,7 +6,7 @@
  */
 
 /*
- * Copyright (c) 2014, Joyent, Inc.
+ * Copyright (c) 2017, Joyent, Inc.
  */
 
 var getopt = require('posix-getopt');
@@ -44,9 +43,13 @@ function parseDate(dateString) {
 function parseOptions() {
         var option;
         var opts = {};
-        var parser = new getopt.BasicParser('d:e:m:',
-                                            process.argv);
-        while ((option = parser.getopt()) !== undefined && !option.error) {
+        var parser = new getopt.BasicParser('d:e:m:', process.argv);
+
+        while ((option = parser.getopt()) !== undefined) {
+                if (option.error) {
+                        usage();
+                }
+
                 switch (option.option) {
                 case 'd':
                         opts.dumpDate = parseDate(option.optarg);
@@ -62,6 +65,7 @@ function parseOptions() {
                         break;
                 }
         }
+
         if (!opts.dumpDate) {
                 usage('-d [dump_date] is a required argument');
         }
@@ -71,6 +75,7 @@ function parseOptions() {
         if (!opts.morayHostname) {
                 usage('-m [moray_hostname] is a required argument');
         }
+
         return (opts);
 }
 

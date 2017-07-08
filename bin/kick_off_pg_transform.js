@@ -1,5 +1,4 @@
 #!/usr/bin/env node
-// -*- mode: js -*-
 /*
  * This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
@@ -7,7 +6,7 @@
  */
 
 /*
- * Copyright (c) 2014, Joyent, Inc.
+ * Copyright (c) 2017, Joyent, Inc.
  */
 
 var assert = require('assert-plus');
@@ -82,9 +81,13 @@ function parseOptions() {
         // command line, and use the defaults if all else fails.
         var opts = MOLA_CONFIG_OBJ;
         opts.shards = opts.shards || [];
-        var parser = new getopt.BasicParser('a:b:m:no:p:y:',
-                                            process.argv);
-        while ((option = parser.getopt()) !== undefined && !option.error) {
+        var parser = new getopt.BasicParser('a:b:m:no:p:y:', process.argv);
+
+        while ((option = parser.getopt()) !== undefined) {
+                if (option.error) {
+                        usage();
+                }
+
                 switch (option.option) {
                 case 'a':
                         opts.assetFile = option.optarg;
@@ -102,10 +105,12 @@ function parseOptions() {
                         opts.outputDirectory = option.optarg;
                         break;
                 case 'p':
-                        opts.pgMapDisk = parseInt(option.optarg, 10);
+                        opts.pgMapDisk = lib.common.parseNumberOption(
+                            option.optarg, '-p', 1, null, usage);
                         break;
                 case 'y':
-                        opts.pgMapMemory = parseInt(option.optarg, 10);
+                        opts.pgMapMemory = lib.common.parseNumberOption(
+                            option.optarg, '-y', 1, null, usage);
                         break;
                 default:
                         usage('Unknown option: ' + option.option);

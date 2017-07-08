@@ -1,5 +1,4 @@
 #!/usr/bin/env node
-// -*- mode: js -*-
 /*
  * This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
@@ -46,10 +45,13 @@ var DEFAULT_DELIMITER = '\t';
 function parseOptions() {
         var option;
         var opts = {};
-        var parser = new getopt.BasicParser('d:p:vn',
-                                            process.argv);
+        var parser = new getopt.BasicParser('d:p:vn', process.argv);
 
-        while ((option = parser.getopt()) !== undefined && !option.error) {
+        while ((option = parser.getopt()) !== undefined) {
+                if (option.error) {
+                        usage();
+                }
+
                 switch (option.option) {
                 case 'd':
                         opts.delimiter = option.optarg;
@@ -69,6 +71,7 @@ function parseOptions() {
                 }
 
         }
+
         if (!opts.pattern) {
                 usage('-p [pattern] is a required argument');
         }

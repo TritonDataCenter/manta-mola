@@ -1,5 +1,4 @@
 #!/usr/bin/env node
-// -*- mode: js -*-
 /*
  * This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
@@ -7,16 +6,16 @@
  */
 
 /*
- * Copyright (c) 2014, Joyent, Inc.
+ * Copyright (c) 2017, Joyent, Inc.
  */
 
+var assert = require('assert-plus');
 var bunyan = require('bunyan');
 var fs = require('fs');
 var getopt = require('posix-getopt');
 var lib = require('../lib');
 var manta = require('manta');
 var path = require('path');
-var sprintf = require('sprintf-js').sprintf;
 
 
 
@@ -45,30 +44,35 @@ var MANTA_DUMP_NAME_PREFIX = 'manta-';
 
 ///--- Helpers
 
-/* BEGIN JSSTYLED */
 function getEnvCommon(opts) {
+        assert.string(opts.marlinPathToAsset, 'opts.marlinPathToAsset');
+
+/* BEGIN JSSTYLED */
         return (' \
 set -o pipefail && \
 cd /assets/ && gtar -xzf ' + opts.marlinPathToAsset + ' && cd mola && \
 ');
-}
 /* END JSSTYLED */
+}
 
 
-/* BEGIN JSSTYLED */
 function getTransformCmd(opts) {
+        assert.number(opts.auditReducerCount, 'opts.auditReducerCount');
+
         var grepForStorageNode = '';
         if (opts.mantaStorageId) {
                 grepForStorageNode = ' | grep ' + opts.mantaStorageId + ' | ';
         }
+
+/* BEGIN JSSTYLED */
         return (getEnvCommon(opts) + ' \
 gzcat -f | \
   ./build/node/bin/node ./bin/audit_transform.js -k $MANTA_INPUT_OBJECT \
     ' + grepForStorageNode + ' | \
-  msplit -n ' + opts.numberReducers + ' \
+  msplit -n ' + opts.auditReducerCount + ' \
 ');
-}
 /* END JSSTYLED */
+}
 
 
 /* BEGIN JSSTYLED */
@@ -86,15 +90,24 @@ function parseOptions() {
         // command line, and use the defaults if all else fails.
         var opts = MOLA_AUDIT_CONFIG_OBJ;
         opts.shards = opts.shards || [];
-        var parser = new getopt.BasicParser('a:d:m:np:r:s:t',
-                                            process.argv);
-        while ((option = parser.getopt()) !== undefined && !option.error) {
+        var parser = new getopt.BasicParser('a:c:d:m:np:r:s:t', process.argv);
+
+        while ((option = parser.getopt()) !== undefined) {
+                if (option.error) {
+                        usage();
+                }
+
                 switch (option.option) {
                 case 'a':
                         opts.assetFile = option.optarg;
                         break;
+                case 'c':
+                        opts.auditReducerCount = lib.common.parseNumberOption(
+                            option.optarg, '-c', 1, null, usage);
+                        break;
                 case 'd':
-                        opts.auditReduceDisk = parseInt(option.optarg, 10);
+                        opts.auditReduceDisk = lib.common.parseNumberOption(
+                            option.optarg, '-d', 1, null, usage);
                         break;
                 case 'm':
                         opts.shards.push(option.optarg);
@@ -103,10 +116,12 @@ function parseOptions() {
                         opts.noJobStart = true;
                         break;
                 case 'p':
-                        opts.auditMapDisk = parseInt(option.optarg, 10);
+                        opts.auditMapDisk = lib.common.parseNumberOption(
+                            option.optarg, '-p', 1, null, usage);
                         break;
                 case 'r':
-                        opts.auditReduceMemory = parseInt(option.optarg, 10);
+                        opts.auditReduceMemory = lib.common.parseNumberOption(
+                            option.optarg, '-r', 1, null, usage);
                         break;
                 case 's':
                         opts.mantaStorageId = option.optarg;
@@ -156,8 +171,18 @@ function usage(msg) {
 
 
 function getAuditJob(opts, cb) {
-        //Use the same number of reducers as input files.
-        opts.numberReducers = opts.objects.length;
+        /*
+         * There is at least one input file for each Moray shard and each Mako
+         * storage zone.  Scale the number of reducers based on the number of
+         * input files without exceeding the reducer count cap.  If needed,
+         * this value can be overridden by setting the "AUDIT_REDUCER_COUNT"
+         * property in the Manta SAPI application metadata, or by passing the
+         * "-c" option to this program.
+         */
+        if (!opts.hasOwnProperty('auditReducerCount')) {
+                opts.auditReducerCount = lib.common.reducerCurve(
+                    opts.objects.length);
+        }
 
         var pgCmd = getTransformCmd(opts);
         var auditCmd = getAuditCmd(opts);
@@ -169,7 +194,7 @@ function getAuditJob(opts, cb) {
                         disk: opts.auditMapDisk
                 }, {
                         type: 'reduce',
-                        count: opts.numberReducers,
+                        count: opts.auditReducerCount,
                         memory: opts.auditReduceMemory,
                         disk: opts.auditReduceDisk,
                         exec: auditCmd

@@ -1,5 +1,4 @@
 #!/usr/bin/env node
-// -*- mode: js -*-
 /*
  * This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
@@ -7,7 +6,7 @@
  */
 
 /*
- * Copyright (c) 2015, Joyent, Inc.
+ * Copyright (c) 2017, Joyent, Inc.
  */
 
 /*
@@ -43,7 +42,6 @@ var getopt = require('posix-getopt');
 var fs = require('fs');
 var lib = require('../lib');
 var path = require('path');
-var util = require('util');
 
 
 
@@ -52,9 +50,13 @@ var util = require('util');
 function parseOptions() {
         var option;
         var opts = {};
-        var parser = new getopt.BasicParser('d:h:s:',
-                                            process.argv);
-        while ((option = parser.getopt()) !== undefined && !option.error) {
+        var parser = new getopt.BasicParser('d:h:s:', process.argv);
+
+        while ((option = parser.getopt()) !== undefined) {
+                if (option.error) {
+                        usage();
+                }
+
                 switch (option.option) {
                 case 'd':
                         opts.tmpDirectory = option.optarg;

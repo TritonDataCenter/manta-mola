@@ -1,5 +1,4 @@
 #!/usr/bin/env node
-// -*- mode: js -*-
 /*
  * This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
@@ -7,7 +6,7 @@
  */
 
 /*
- * Copyright (c) 2014, Joyent, Inc.
+ * Copyright (c) 2017, Joyent, Inc.
  */
 
 var carrier = require('carrier');
@@ -26,8 +25,6 @@ var path = require('path');
  *
  * When run with the -x (exclude) flag, it will not include the line if any
  * one of the fields is null or undefined.
- *
- * TODO: Add a delimiter other than space.
  */
 
 ///--- Helpers
@@ -38,9 +35,13 @@ function parseOptions() {
         opts.fields = [];
         opts.reverse = false;
         opts.exclude = false;
-        var parser = new getopt.BasicParser('f:rx',
-                                            process.argv);
-        while ((option = parser.getopt()) !== undefined && !option.error) {
+        var parser = new getopt.BasicParser('f:rx', process.argv);
+
+        while ((option = parser.getopt()) !== undefined) {
+                if (option.error) {
+                        usage();
+                }
+
                 switch (option.option) {
                 case 'f':
                         opts.fields.push(option.optarg);

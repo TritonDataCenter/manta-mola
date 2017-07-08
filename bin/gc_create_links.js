@@ -54,9 +54,13 @@ var DIR_CACHE = {};
 function parseOptions() {
         var option;
         var opts = {};
-        var parser = new getopt.BasicParser('d:',
-                                            process.argv);
-        while ((option = parser.getopt()) !== undefined && !option.error) {
+        var parser = new getopt.BasicParser('d:', process.argv);
+
+        while ((option = parser.getopt()) !== undefined) {
+                if (option.error) {
+                        usage();
+                }
+
                 switch (option.option) {
                 case 'd':
                         opts.mantaDir = option.optarg;
