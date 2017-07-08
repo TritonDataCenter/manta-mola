@@ -1,5 +1,4 @@
 #!/usr/bin/env node
-// -*- mode: js -*-
 /*
  * This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
@@ -7,16 +6,14 @@
  */
 
 /*
- * Copyright (c) 2014, Joyent, Inc.
+ * Copyright (c) 2017, Joyent, Inc.
  */
 
 var bunyan = require('bunyan');
-var carrier = require('carrier');
 var fs = require('fs');
 var getopt = require('posix-getopt');
 var lib = require('../lib');
 var path = require('path');
-var util = require('util');
 
 
 
@@ -36,9 +33,13 @@ var LOG = bunyan.createLogger({
 function parseOptions() {
         var option;
         var opts = { log: LOG };
-        var parser = new getopt.BasicParser('e:f:s:',
-                                            process.argv);
-        while ((option = parser.getopt()) !== undefined && !option.error) {
+        var parser = new getopt.BasicParser('e:f:s:', process.argv);
+
+        while ((option = parser.getopt()) !== undefined) {
+                if (option.error) {
+                        usage();
+                }
+
                 switch (option.option) {
                 case 'e':
                         opts.errorFile = option.optarg;
@@ -54,6 +55,7 @@ function parseOptions() {
                         break;
                 }
         }
+
         if (!opts.errorFile) {
                 usage('-e [file] is a required argument');
         }
@@ -63,6 +65,7 @@ function parseOptions() {
         if (!opts.storageListFile) {
                 usage('-s [storage_list_file] is a required argument');
         }
+
         return (opts);
 }
 

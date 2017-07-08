@@ -1,5 +1,4 @@
 #!/usr/bin/env node
-// -*- mode: js -*-
 /*
  * This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
@@ -7,7 +6,7 @@
  */
 
 /*
- * Copyright (c) 2014, Joyent, Inc.
+ * Copyright (c) 2017, Joyent, Inc.
  */
 
 var bunyan = require('bunyan');
@@ -82,9 +81,13 @@ function parseOptions() {
         opts.shards = opts.shards || [];
         opts.reduces = opts.reduces || [];
         opts.tablePrefixes = opts.tablePrefixes || [];
-        var parser = new getopt.BasicParser('a:c:e:m:np:r:st:',
-                                            process.argv);
-        while ((option = parser.getopt()) !== undefined && !option.error) {
+        var parser = new getopt.BasicParser('a:c:e:m:np:r:st:', process.argv);
+
+        while ((option = parser.getopt()) !== undefined) {
+                if (option.error) {
+                        usage();
+                }
+
                 switch (option.option) {
                 case 'a':
                         opts.assetFile = option.optarg;
@@ -93,7 +96,8 @@ function parseOptions() {
                         opts.reduces.push(option.optarg);
                         break;
                 case 'e':
-                        opts.numberReducers = parseInt(option.optarg, 10);
+                        opts.numberReducers = lib.common.parseNumberOption(
+                            option.optarg, '-e', 1, null, usage);
                         break;
                 case 'm':
                         opts.shards.push(option.optarg);
@@ -105,7 +109,8 @@ function parseOptions() {
                         opts.map = option.optarg;
                         break;
                 case 'r':
-                        opts.pgJobReduceMemory = parseInt(option.optarg, 10);
+                        opts.pgJobReduceMemory = lib.common.parseNumberOption(
+                            option.optarg, '-r', 1, null, usage);
                         break;
                 case 's':
                         opts.readFromStdin = true;

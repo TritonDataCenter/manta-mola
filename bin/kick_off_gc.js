@@ -1,5 +1,4 @@
 #!/usr/bin/env node
-// -*- mode: js -*-
 /*
  * This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
@@ -7,7 +6,7 @@
  */
 
 /*
- * Copyright (c) 2014, Joyent, Inc.
+ * Copyright (c) 2017, Joyent, Inc.
  */
 
 var bunyan = require('bunyan');
@@ -32,12 +31,6 @@ var MOLA_CONFIG = (process.env.MOLA_CONFIG ||
 var MOLA_CONFIG_OBJ = JSON.parse(fs.readFileSync(MOLA_CONFIG));
 var MANTA_CLIENT = manta.createClientFromFileSync(MOLA_CONFIG, LOG);
 var MANTA_USER = MANTA_CLIENT.user;
-var AUDIT = {
-        'audit': true,
-        'startedJob': 0,
-        'cronFailed': 1,
-        'startTime': new Date()
-};
 
 
 
@@ -116,18 +109,24 @@ function parseOptions() {
         // command line, and use the defaults if all else fails.
         var opts = MOLA_CONFIG_OBJ;
         opts.shards = opts.shards || [];
-        var parser = new getopt.BasicParser('a:d:g:m:no:p:r:t',
-                                            process.argv);
-        while ((option = parser.getopt()) !== undefined && !option.error) {
+        var parser = new getopt.BasicParser('a:d:g:m:no:p:r:t', process.argv);
+
+        while ((option = parser.getopt()) !== undefined) {
+                if (option.error) {
+                        usage();
+                }
+
                 switch (option.option) {
                 case 'a':
                         opts.assetFile = option.optarg;
                         break;
                 case 'd':
-                        opts.gcReduceDisk = parseInt(option.optarg, 10);
+                        opts.gcReduceDisk = lib.common.parseNumberOption(
+                            option.optarg, '-d', 1, null, usage);
                         break;
                 case 'g':
-                        opts.gracePeriodSeconds = parseInt(option.optarg, 10);
+                        opts.gracePeriodSeconds = lib.common.parseNumberOption(
+                            option.optarg, '-g', 1, null, usage);
                         break;
                 case 'm':
                         opts.shards.push(option.optarg);
@@ -139,10 +138,12 @@ function parseOptions() {
                         opts.objectId = option.optarg;
                         break;
                 case 'p':
-                        opts.gcMapDisk = parseInt(option.optarg, 10);
+                        opts.gcMapDisk = lib.common.parseNumberOption(
+                            option.optarg, '-p', 1, null, usage);
                         break;
                 case 'r':
-                        opts.gcReduceMemory = parseInt(option.optarg, 10);
+                        opts.gcReduceMemory = lib.common.parseNumberOption(
+                            option.optarg, '-r', 1, null, usage);
                         break;
                 case 't':
                         opts.jobName = 'manta_gc_test';
