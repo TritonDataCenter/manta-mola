@@ -5,48 +5,30 @@
 #
 
 #
-# Copyright (c) 2014, Joyent, Inc.
+# Copyright (c) 2017, Joyent, Inc.
 #
-
-#
-# Makefile: basic Makefile for template API service
-#
-# This Makefile is a template for new repos. It contains only repo-specific
-# logic and uses included makefiles to supply common targets (javascriptlint,
-# jsstyle, restdown, etc.), which are used by other repos as well. You may well
-# need to rewrite most of this file, but you shouldn't need to touch the
-# included makefiles.
-#
-# If you find yourself adding support for new targets that could be useful for
-# other projects too, you should add these to the original versions of the
-# included Makefiles (in eng.git) so that other teams can use them too.
-#
-
-#
-# Tools
-#
-NODEUNIT        := ./node_modules/.bin/nodeunit
-NPM             := npm
 
 #
 # Files
 #
-BASH_FILES	 = amon/checks/check-wrasse-behind
-DOC_FILES        = $(shell find docs -name '*.md' | cut -d '/' -f 2)
-JS_FILES        := $(shell ls *.js) \
-    $(shell find lib test bin amon/checks -name '*.js')
-JSL_CONF_NODE    = tools/jsl.node.conf
-JSL_FILES_NODE   = $(JS_FILES)
-JSSTYLE_FILES    = $(JS_FILES)
-JSSTYLE_FLAGS    = -f tools/jsstyle.conf
+BASH_FILES :=		amon/checks/check-wrasse-behind
+DOC_FILES :=		$(notdir $(wildcard docs/*.md))
+JS_FILES :=		$(wildcard *.js) \
+			$(shell find lib test bin amon/checks -name '*.js')
+JSL_CONF_NODE :=	tools/jsl.node.conf
+JSL_FILES_NODE :=	$(JS_FILES)
+JSSTYLE_FILES :=	$(JS_FILES)
+JSSTYLE_FLAGS :=	-f tools/jsstyle.conf
+
+NODEUNIT_TESTS :=	$(notdir $(wildcard test/*.test.js))
 
 #
 # Variables
 #
-NAME                  = mola
-NODE_PREBUILT_VERSION = v0.10.32
-NODE_PREBUILT_TAG     = zone
-NODE_PREBUILT_IMAGE   = fd2cc906-8938-11e3-beab-4359c665ac99
+NAME =			mola
+NODE_PREBUILT_VERSION =	v0.10.32
+NODE_PREBUILT_TAG =	zone
+NODE_PREBUILT_IMAGE =	fd2cc906-8938-11e3-beab-4359c665ac99
 
 
 include ./tools/mk/Makefile.defs
@@ -55,38 +37,34 @@ ifeq ($(shell uname -s),SunOS)
 else
 	include ./tools/mk/Makefile.node.defs
 endif
-include ./tools/mk/Makefile.node_deps.defs
-include ./tools/mk/Makefile.smf.defs
+include ./tools/mk/Makefile.node_modules.defs
 
 #
 # MG Variables
 #
-RELEASE_TARBALL         := $(NAME)-pkg-$(STAMP).tar.bz2
-ROOT                    := $(shell pwd)
-RELSTAGEDIR                  := /tmp/$(STAMP)
+RELEASE_TARBALL :=	$(NAME)-pkg-$(STAMP).tar.bz2
+ROOT :=			$(shell pwd)
+RELSTAGEDIR :=		/tmp/$(STAMP)
 
 #
 # v8plus uses the CTF tools as part of its build, but they can safely be
 # overridden here so that this works in dev zones without them.
 # See marlin.git Makefile.
 #
-NPM_ENV		 = MAKE_OVERRIDES="CTFCONVERT=/bin/true CTFMERGE=/bin/true"
+NPM_ENV =		MAKE_OVERRIDES="CTFCONVERT=/bin/true CTFMERGE=/bin/true"
 
 #
 # Repo-specific targets
 #
 .PHONY: all
-all: $(SMF_MANIFESTS) | $(NODEUNIT) $(REPO_DEPS) scripts
-	$(NPM) install
-$(NODEUNIT): | $(NPM_EXEC)
-	$(NPM) install
-
-CLEAN_FILES += $(NODEUNIT) ./node_modules/nodeunit
+all: $(STAMP_NODE_MODULES) scripts
 
 .PHONY: test
-test: $(NODEUNIT)
-	mkdir -p ./tmp
-	find test/ -name '*.test.js' | xargs -n 1 $(NODEUNIT)
+test: $(STAMP_NODE_MODULES) $(addprefix run-nodeunit.,$(NODEUNIT_TESTS))
+
+run-nodeunit.%: test/%
+	PATH=$(TOP)/$(NODE_INSTALL)/bin:$(PATH) \
+	    $(NODE) ./node_modules/.bin/nodeunit $^
 
 .PHONY: scripts
 scripts: deps/manta-scripts/.git
@@ -94,7 +72,7 @@ scripts: deps/manta-scripts/.git
 	cp deps/manta-scripts/*.sh $(BUILD)/scripts
 
 .PHONY: release
-release: all docs $(SMF_MANIFESTS)
+release: all docs
 	@echo "Building $(RELEASE_TARBALL)"
 	@mkdir -p $(RELSTAGEDIR)/root/opt/smartdc/$(NAME)
 	@mkdir -p $(RELSTAGEDIR)/root/opt/smartdc/boot
@@ -138,6 +116,5 @@ ifeq ($(shell uname -s),SunOS)
 else
 	include ./tools/mk/Makefile.node.targ
 endif
-include ./tools/mk/Makefile.node_deps.targ
-include ./tools/mk/Makefile.smf.targ
+include ./tools/mk/Makefile.node_modules.targ
 include ./tools/mk/Makefile.targ
