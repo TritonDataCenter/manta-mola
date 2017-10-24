@@ -23,7 +23,7 @@
                 "moray": "git+https://github.com/joyent/node-moray.git#fd5781bc25a9bfe2ba82167664639753fb9f0ca5",
                 "posix-getopt": "1.0.0",
                 "sprintf-js": "0.0.7",
-                "vasync": "1.6.1",
+                "vasync": "2.1.0",
                 "verror": "^1.9.0",
                 "vstream": "0.1.0"
         },
