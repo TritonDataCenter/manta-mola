@@ -142,9 +142,8 @@ function getMpuGcCmd(opts) {
 /* BEGIN JSSTYLED */
         return (getEnvCommon(opts) + ' \
 export UUID=$(uuid) && \
-export MANTA_PRE=/$MANTA_USER/stor/$MANTA_MPU_GC/all && \
-export MANTA_MPU_GC_CLEANUP_FILE=$MANTA_PRE/do/$NOW-$MARLIN_JOB-X-$UUID && \
-export LINKS_FILE=./links.txt && \
+export MANTA_PRE=/$MANTA_USER/stor/$MANTA_MPU_GC && \
+export MANTA_MPU_GC_CLEANUP_FILE=$MANTA_PRE/cleanup/$NOW-$MARLIN_JOB-X-$UUID && \
 sort | \
 ./build/node/bin/node ./bin/mpu_gc.js' + gracePeriodOption + ' | \
 mpipe $MANTA_MPU_GC_CLEANUP_FILE \
@@ -160,7 +159,7 @@ function parseOptions() {
          */
         var opts = MOLA_CONFIG_OBJ;
         opts.shards = opts.shards || [];
-        var parser = new getopt.BasicParser('a:d:g:m:no:p:r:t',
+        var parser = new getopt.BasicParser('a:d:g:s:m:no:p:r:t',
                                             process.argv);
         while ((option = parser.getopt()) !== undefined && !option.error) {
                 switch (option.option) {
@@ -173,13 +172,18 @@ function parseOptions() {
                 case 'g':
                         opts.gracePeriodSeconds = parseInt(option.optarg, 10);
                         break;
+                case 's':
+                        opts.maxHoursInPast = parseInt(option.optarg, 10);
+                        break;
                 case 'm':
                         opts.shards.push(option.optarg);
                         break;
                 case 'n':
+                //TODO this isn't used
                         opts.noJobStart = true;
                         break;
                 case 'o':
+                //TODO not sure what this is for
                         opts.objectId = option.optarg;
                         break;
                 case 'p':
@@ -214,10 +218,8 @@ function parseOptions() {
         opts.marlinAssetObject = opts.assetObject;
 
         opts.directories = [
-                opts.jobRoot + '/all',
-                opts.jobRoot + '/all/do',
-                opts.jobRoot + '/all/done',
-                opts.jobRoot + '/moray'
+                opts.jobRoot + '/cleanup',
+                opts.jobRoot + '/completed'
         ];
 
         return (opts);
@@ -316,7 +318,8 @@ function findMpuGcObjects(opts, cb) {
                 'tablePrefixes': [
                         MANTA_DUMP_NAME_PREFIX,
                         MANTA_UPLOADS_NAME_PREFIX
-                ]
+                ],
+                'maxHoursInPast': opts.maxHoursInPast
         }, function (err, results) {
                 if (err) {
                         cb(err);
