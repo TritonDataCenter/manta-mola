@@ -762,6 +762,43 @@ if (!userOpts.file) {
                                                 cb();
                                         }
                                 });
+                        },
+
+                        /*
+                         * Finally, link the instruction files in the
+                         * "completed" directory of Manta to indicate they've
+                         * been processed, then unlink them from the input
+                         * directory.
+                         */
+                        function linkAndDelCompletedInstructions(_, cb) {
+                                linkAndDelCompleted({
+                                        mantaClient: MANTA_CLIENT,
+                                        log: LOG,
+                                        completed: completed,
+                                        completedDir: MPU_GC_COMPLETED_DIR,
+                                        dryRun: userOpts.dryRun,
+                                        verbose: userOpts.verbose
+                                }, function (err) {
+                                        if (err) {
+                                                LOG.fatal({
+                                                        err: err
+                                                }, 'could not cleanup ' +
+                                                        'all instruction ' +
+                                                        'files');
+                                                cb(err);
+                                        } else {
+                                                LOG.info({
+                                                        completed: completed
+                                                }, sprintf('linked ' +
+                                                        'instruction files ' +
+                                                        'to "%s" and deleted ' +
+                                                        'them from "%s"',
+                                                        MPU_GC_COMPLETED_DIR,
+                                                        MPU_GC_CLEANUP_DIR));
+
+                                                cb();
+                                        }
+                                });
                         }
                 ]}, function (verr, results) {
                         if (verr) {
