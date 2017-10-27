@@ -42,7 +42,7 @@ var LOG = bunyan.createLogger({
 });
 
 var MANTA_CONFIG = (process.env.MANTA_CONFIG ||
-                    '/opt/smartdc/common/etc/config.json');
+                    '/opt/smartdc/mola/etc/config.json');
 var CONFIG = JSON.parse(fs.readFileSync(MANTA_CONFIG, { encoding: 'utf8' }));
 
 var MANTA_CLIENT = manta.createClientFromFileSync(MANTA_CONFIG, LOG);
