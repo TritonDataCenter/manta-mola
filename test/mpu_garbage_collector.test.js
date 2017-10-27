@@ -9,6 +9,7 @@
  */
 
 var assert = require('assert-plus');
+var bunyan = require('bunyan');
 var jsprim = require('jsprim');
 var libuuid = require('libuuid');
 var util = require('util');
@@ -36,6 +37,13 @@ var ID_3 = libuuid.create();
 var DATE_GC = new Date('2017-08-30T00:00:00');
 var DATE_OUTSIDE_GP = new Date('2017-08-27T00:00:00');
 var DATE_WITHIN_GP = new Date('2017-08-29T00:00:00');
+
+var LOG = bunyan.createLogger({
+        level: process.env.LOG_LEVEL || 'info',
+        name: 'mpu_garbage_collector_test',
+        stream: process.stdout,
+        serializers: bunyan.stdSerializers
+});
 
 var test = helper.test;
 
@@ -124,7 +132,8 @@ test('single batch: finalizing record only', function (t) {
         var stream = new MemoryStream(inputs.join('\n'));
         var gc = lib.createMpuGarbageCollector({
                 reader: stream,
-                gcDate: DATE_GC
+                gcDate: DATE_GC,
+                log: LOG
         });
         var expect = [];
         expect.push(mpuCommon.recordToObject(inputs[0]));
@@ -157,7 +166,8 @@ test('single batch: upload record only', function (t) {
         var stream = new MemoryStream(inputs.join('\n'));
         var gc = lib.createMpuGarbageCollector({
                 reader: stream,
-                gcDate: DATE_GC
+                gcDate: DATE_GC,
+                log: LOG
         });
         var expect = [];
 
@@ -189,7 +199,8 @@ test('single batch: part record only', function (t) {
         var stream = new MemoryStream(inputs.join('\n'));
         var gc = lib.createMpuGarbageCollector({
                 reader: stream,
-                gcDate: DATE_GC
+                gcDate: DATE_GC,
+                log: LOG
         });
         var expect = [];
 
@@ -224,7 +235,8 @@ test('single batch: upload and part records', function (t) {
         var stream = new MemoryStream(inputs.join('\n'));
         var gc = lib.createMpuGarbageCollector({
                 reader: stream,
-                gcDate: DATE_GC
+                gcDate: DATE_GC,
+                log: LOG
         });
         var expect = [];
 
@@ -257,7 +269,8 @@ test('single batch: finalizing record and upload record', function (t) {
         var stream = new MemoryStream(inputs.join('\n'));
         var gc = lib.createMpuGarbageCollector({
                 reader: stream,
-                gcDate: DATE_GC
+                gcDate: DATE_GC,
+                log: LOG
         });
         var expect = [];
         expect.push(mpuCommon.recordToObject(inputs[1]));
@@ -297,7 +310,8 @@ function (t) {
         var stream = new MemoryStream(inputs.join('\n'));
         var gc = lib.createMpuGarbageCollector({
                 reader: stream,
-                gcDate: DATE_GC
+                gcDate: DATE_GC,
+                log: LOG
         });
         var expect = [];
 
@@ -345,7 +359,8 @@ test('finalizing records only', function (t) {
         var stream = new MemoryStream(inputs.join('\n'));
         var gc = lib.createMpuGarbageCollector({
                 reader: stream,
-                gcDate: DATE_GC
+                gcDate: DATE_GC,
+                log: LOG
         });
         var expect = [];
         inputs.forEach(function (r) {
@@ -392,7 +407,8 @@ test('all upload records', function (t) {
         var stream = new MemoryStream(inputs.join('\n'));
         var gc = lib.createMpuGarbageCollector({
                 reader: stream,
-                gcDate: DATE_GC
+                gcDate: DATE_GC,
+                log: LOG
         });
         var expect = [];
         var output = [];
@@ -438,7 +454,8 @@ test('all part records', function (t) {
         var stream = new MemoryStream(inputs.join('\n'));
         var gc = lib.createMpuGarbageCollector({
                 reader: stream,
-                gcDate: DATE_GC
+                gcDate: DATE_GC,
+                log: LOG
         });
         var expect = [];
         var output = [];
@@ -488,7 +505,8 @@ test('no finalizing records', function (t) {
         var stream = new MemoryStream(inputs.join('\n'));
         var gc = lib.createMpuGarbageCollector({
                 reader: stream,
-                gcDate: DATE_GC
+                gcDate: DATE_GC,
+                log: LOG
         });
         var expect = [];
         var output = [];
@@ -541,7 +559,8 @@ test('all finalized', function (t) {
         var stream = new MemoryStream(inputs.join('\n'));
         var gc = lib.createMpuGarbageCollector({
                 reader: stream,
-                gcDate: DATE_GC
+                gcDate: DATE_GC,
+                log: LOG
         });
         var expect = [];
 
@@ -607,7 +626,8 @@ test('finalizing record only batch at beginning', function (t) {
         var stream = new MemoryStream(inputs.join('\n'));
         var gc = lib.createMpuGarbageCollector({
                 reader: stream,
-                gcDate: DATE_GC
+                gcDate: DATE_GC,
+                log: LOG
         });
         var expect = [];
         expect.push(mpuCommon.recordToObject(inputs[0]));
@@ -654,7 +674,8 @@ test('finalizing record only batch at end', function (t) {
         var stream = new MemoryStream(inputs.join('\n'));
         var gc = lib.createMpuGarbageCollector({
                 reader: stream,
-                gcDate: DATE_GC
+                gcDate: DATE_GC,
+                log: LOG
         });
         var expect = [];
         expect.push(mpuCommon.recordToObject(inputs[7]));
@@ -703,7 +724,8 @@ test('upload record only batch at beginning', function (t) {
         var stream = new MemoryStream(inputs.join('\n'));
         var gc = lib.createMpuGarbageCollector({
                 reader: stream,
-                gcDate: DATE_GC
+                gcDate: DATE_GC,
+                log: LOG
         });
         var expect = [];
 
@@ -763,7 +785,8 @@ test('upload record only batch at end', function (t) {
         var stream = new MemoryStream(inputs.join('\n'));
         var gc = lib.createMpuGarbageCollector({
                 reader: stream,
-                gcDate: DATE_GC
+                gcDate: DATE_GC,
+                log: LOG
         });
         var expect = [];
 
@@ -823,7 +846,8 @@ test('part record only batch at beginning', function (t) {
         var stream = new MemoryStream(inputs.join('\n'));
         var gc = lib.createMpuGarbageCollector({
                 reader: stream,
-                gcDate: DATE_GC
+                gcDate: DATE_GC,
+                log: LOG
         });
         var expect = [];
 
@@ -884,7 +908,8 @@ test('part record at end', function (t) {
         var stream = new MemoryStream(inputs.join('\n'));
         var gc = lib.createMpuGarbageCollector({
                 reader: stream,
-                gcDate: DATE_GC
+                gcDate: DATE_GC,
+                log: LOG
         });
         var expect = [];
 
@@ -933,7 +958,8 @@ function (t) {
         var stream = new MemoryStream(inputs.join('\n'));
         var gc = lib.createMpuGarbageCollector({
                 reader: stream,
-                gcDate: DATE_GC
+                gcDate: DATE_GC,
+                log: LOG
         });
         var expect = [];
 
@@ -970,7 +996,8 @@ test('single batch: multiple records, within grace period', function (t) {
         var stream = new MemoryStream(inputs.join('\n'));
         var gc = lib.createMpuGarbageCollector({
                 reader: stream,
-                gcDate: DATE_GC
+                gcDate: DATE_GC,
+                log: LOG
         });
         var expect = [];
 
@@ -1009,7 +1036,8 @@ function (t) {
         var stream = new MemoryStream(inputs.join('\n'));
         var gc = lib.createMpuGarbageCollector({
                 reader: stream,
-                gcDate: DATE_GC
+                gcDate: DATE_GC,
+                log: LOG
         });
         var expect = [];
 
@@ -1048,7 +1076,8 @@ function (t) {
         var stream = new MemoryStream(inputs.join('\n'));
         var gc = lib.createMpuGarbageCollector({
                 reader: stream,
-                gcDate: DATE_GC
+                gcDate: DATE_GC,
+                log: LOG
         });
         var expect = [];
         expect.push(mpuCommon.recordToObject(inputs[1]));
@@ -1111,7 +1140,8 @@ test('all finalized, some within grace period', function (t) {
         var stream = new MemoryStream(inputs.join('\n'));
         var gc = lib.createMpuGarbageCollector({
                 reader: stream,
-                gcDate: DATE_GC
+                gcDate: DATE_GC,
+                log: LOG
         });
         var expect = [];
 
@@ -1179,6 +1209,7 @@ test('all finalized, some within custom grace period', function (t) {
         var gc = lib.createMpuGarbageCollector({
                 reader: stream,
                 gcDate: DATE_GC,
+                log: LOG,
                 gracePeriodMillis: gracePeriod
         });
         var expect = [];
