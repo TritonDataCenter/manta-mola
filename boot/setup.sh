@@ -52,7 +52,6 @@ function manta_setup_mola {
     mkdir -p /opt/smartdc/common/bundle
     cd /opt/smartdc && tar -chzf /opt/smartdc/common/bundle/mola.tar.gz mola; cd -
     echo '0 2 * * * cd /opt/smartdc/mola && ./build/node/bin/node ./bin/kick_off_pg_transform.js >>/var/log/mola-pg-transform.log 2>&1' >>$crontab
-    echo '0 3 * * * cd /opt/smartdc/mola && ./build/node/bin/node ./bin/kick_off_mpu_pg_transform.js >>/var/log/mola-mpu-pg-transform.log 2>&1' >>$crontab
 
     echo '5 8 * * * cd /opt/smartdc/mola && ./build/node/bin/node ./bin/kick_off_gc.js >>/var/log/mola.log 2>&1' >>$crontab
     echo '5 9 * * * cd /opt/smartdc/mola && ./build/node/bin/node ./bin/kick_off_mpu_gc.js >>/var/log/mola-mpu-gc.log 2>&1' >>$crontab
