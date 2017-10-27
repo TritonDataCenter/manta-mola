@@ -10,10 +10,20 @@
  * Copyright (c) 2017, Joyent, Inc.
  */
 
+var bunyan = require('bunyan');
 var getopt = require('posix-getopt');
 var lib = require('../lib');
 var path = require('path');
 
+
+///--- Globals
+
+var LOG = bunyan.createLogger({
+        level: (process.env.LOG_LEVEL || 'info'),
+        name: 'mpu_gc',
+        stream: process.stderr,
+        serializers: bunyan.stdSerializers
+});
 
 
 ///--- Helpers
@@ -52,14 +62,18 @@ function usage(msg) {
 
 var _opts = parseOptions();
 _opts.reader = process.stdin;
-//As a convience, seconds to millis
+_opts.log = LOG.child({
+        component: 'MpuGarbageCollector'
+});
+
+// As a convenience seconds to millis
 if (_opts.gracePeriodSeconds) {
         _opts.gracePeriodMillis = _opts.gracePeriodSeconds * 1000;
 }
 
 var _garbageCollector = lib.createMpuGarbageCollector(_opts);
-_garbageCollector.on('mpuCleanup', function (moray) {
-        console.log(moray.toString());
+_garbageCollector.on('mpuCleanup', function (record) {
+        console.log(record.toString());
 });
 
 _garbageCollector.on('error', function (err) {
