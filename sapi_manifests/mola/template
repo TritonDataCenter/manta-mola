@@ -27,8 +27,7 @@
         "maxAuthCacheAgeMs": 300000,
         "maxTranslationCacheSize": 1000,
         "maxTranslationCacheAgeMs": 300000
-    },
-    {{#AUDIT_MAP_DISK}},
+    }{{#AUDIT_MAP_DISK}},
     "auditMapDisk": {{AUDIT_MAP_DISK}}{{/AUDIT_MAP_DISK}}{{#AUDIT_REDUCE_DISK}},
     "auditReduceDisk": {{AUDIT_REDUCE_DISK}}{{/AUDIT_REDUCE_DISK}}{{#AUDIT_REDUCE_MEMORY}},
     "auditReduceMemory": {{AUDIT_REDUCE_MEMORY}}{{/AUDIT_REDUCE_MEMORY}}{{#AUDIT_REDUCER_COUNT}},
