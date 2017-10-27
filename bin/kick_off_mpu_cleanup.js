@@ -608,7 +608,7 @@ function scriptFinish() {
         // Close open clients.
         MAHI_CLIENT.close();
         MANTA_CLIENT.close();
-debugger;
+
         // Log what we did for posterity.
         LOG.info({
                 instrFiles: instrFiles,
@@ -773,9 +773,14 @@ if (!userOpts.file) {
 
         });
 } else {
+        toCleanup = [];
+        instrFiles = [];
         userOpts.file.forEach(function (f) {
                 instrFiles.push(f);
-                toCleanup.push(fs.createReadStream(f));
+                toCleanup.push({
+                        stream: fs.createReadStream(f),
+                        file: f
+                });
         });
 
         runCleanupInstructions({
