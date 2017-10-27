@@ -135,6 +135,7 @@ function getMpuGcCmd(opts) {
         if (opts.gracePeriodSeconds) {
                 gracePeriodOption = ' -g ' + opts.gracePeriodSeconds;
         }
+        var fileOption = ' -f ' + opts.instrFile;
         /*
          * As the normal GC job does, we use a UUID only because there's no way
          * (yet) to get a reference to which reducer this is running on.
@@ -145,7 +146,7 @@ export UUID=$(uuid) && \
 export MANTA_PRE=/$MANTA_USER/stor/$MANTA_MPU_GC && \
 export MANTA_MPU_GC_CLEANUP_FILE=$MANTA_PRE/cleanup/$NOW-$MARLIN_JOB-X-$UUID && \
 sort | \
-./build/node/bin/node ./bin/mpu_gc.js' + gracePeriodOption + ' | \
+./build/node/bin/node ./bin/mpu_gc.js' + gracePeriodOption + fileOption + ' | \
 mpipe $MANTA_MPU_GC_CLEANUP_FILE \
 ');
 /* END JSSTYLED */
@@ -159,12 +160,15 @@ function parseOptions() {
          */
         var opts = MOLA_CONFIG_OBJ;
         opts.shards = opts.shards || [];
-        var parser = new getopt.BasicParser('a:d:g:s:m:no:p:r:t',
+        var parser = new getopt.BasicParser('a:bd:g:s:m:no:p:r:t',
                                             process.argv);
         while ((option = parser.getopt()) !== undefined && !option.error) {
                 switch (option.option) {
                 case 'a':
                         opts.assetFile = option.optarg;
+                        break;
+                case 'b':
+                        opts.mapPhaseOnly = true;
                         break;
                 case 'd':
                         opts.gcReduceDisk = parseInt(option.optarg, 10);
@@ -262,18 +266,26 @@ function getMpuGcJob(opts, cb) {
         var mpuPgCmd = getMpuPgTransformCmd(opts);
         var mpuGcCmd = getMpuGcCmd(opts);
 
-        var job = {
-                phases: [ {
+        var phases = [
+                {
                         type: 'storage-map',
                         exec: mpuPgCmd,
                         disk: opts.gcMapDisk
-                }, {
+                }
+        ];
+
+        if (!opts.mapPhaseOnly) {
+                phases.push({
                         type: 'reduce',
                         count: opts.numberReducers,
                         memory: opts.gcReduceMemory,
                         disk: opts.gcReduceDisk,
                         exec: mpuGcCmd
-                } ]
+                });
+        }
+
+        var job = {
+                phases: phases
         };
 
         LOG.info({
