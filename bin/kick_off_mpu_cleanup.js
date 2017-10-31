@@ -102,8 +102,8 @@ var mpu = require('../lib/mpu');
  *      0. lstream
  *      1. MpuBatchStream
  *      2. MpuVerifyStream
- *      3. MpuUnlinkLiveRecordsStream (type='partRecords')
- *      4. MpuUnlinkLiveRecordsStream (type='uploadRecord')
+ *      3. MpuUnlinkLiveRecordStream (type='partRecords')
+ *      4. MpuUnlinkLiveRecordStream (type='uploadRecord')
  *      5. MpuMorayCleanerStream
  *
  *
@@ -143,6 +143,14 @@ var MAHI_CLIENT = mahi.createClient(CONFIG.auth);
 var MPU_GC_ROOT = '/' + MANTA_USER + '/stor/manta_mpu_gc';
 var MPU_GC_CLEANUP_DIR = MPU_GC_ROOT + '/cleanup';
 var MPU_GC_COMPLETED_DIR = MPU_GC_ROOT + '/completed';
+
+var RAW_STATS_SUMMARY = {};
+
+var CLEANUP_STREAM_BATCH = 'MpuBatchStream';
+var CLEANUP_STREAM_VERIFY = 'MpuVerifyStream';
+var CLEANUP_STREAM_UNLINKPARTS = 'MpuUnlinkLivePartRecordsStream';
+var CLEANUP_STREAM_UNLINKUPLOADDIR = 'MpuUnlinkLiveUploadRecordStream';
+var CLEANUP_STREAM_DELFR = 'MpuMorayCleanerStream';
 
 var sprintf = util.format;
 
@@ -259,7 +267,7 @@ function newMpuGcStream(args) {
         var mbs = vstream.wrapTransform(new mpu.createMpuBatchStream({
                 log: args.log.child({
                         step: 1,
-                        streamName: 'MpuBatchStream',
+                        streamName: CLEANUP_STREAM_BATCH,
                         instrFile: args.instrFile
                 })
         }));
@@ -268,7 +276,7 @@ function newMpuGcStream(args) {
         var mvs = vstream.wrapTransform(new mpu.createMpuVerifyStream({
                 log: args.log.child({
                         step: 2,
-                        streamName: 'MpuVerifyStream',
+                        streamName: CLEANUP_STREAM_VERIFY,
                         instrFile: args.instrFile
                 })
         }));
@@ -278,7 +286,7 @@ function newMpuGcStream(args) {
                 new mpu.createMpuUnlinkLiveRecordStream({
                         log: args.log.child({
                                 step: 3,
-                                streamName: 'MpuUnlinkLivePartRecordsStream',
+                                streamName: CLEANUP_STREAM_UNLINKPARTS,
                                 instrFile: args.instrFile
                         }),
                         dryRun: args.dryRun,
@@ -293,7 +301,7 @@ function newMpuGcStream(args) {
                 new mpu.createMpuUnlinkLiveRecordStream({
                         log: args.log.child({
                                 step: 4,
-                                streamName: 'MpuUnlinkLiveUploadRecordStream',
+                                streamName: CLEANUP_STREAM_UNLINKUPLOADDIR,
                                 instrFile: args.instrFile
                         }),
                         dryRun: args.dryRun,
@@ -304,11 +312,11 @@ function newMpuGcStream(args) {
         }));
 
         // Step 5: Delete finalizing record for each MPU
-        var mmcls = vstream.wrapStream(
+        var mmcs = vstream.wrapStream(
                 new mpu.createMpuMorayCleanerStream({
                         log: args.log.child({
                                 step: 5,
-                                streamName: 'MpuMorayCleanerStream',
+                                streamName: CLEANUP_STREAM_DELFR,
                                 instrFile: args.instrFile
                         }),
                         dryRun: args.dryRun,
@@ -316,10 +324,31 @@ function newMpuGcStream(args) {
         }));
 
         /*
-         * We know the pipeline has completed when the last stream emits
-         * 'finish'.
+         * Set up a stats object that we can use to infer more information about
+         * what happened in this stream when it has completed.
          */
-        mmcls.on('finish', args.onFinishCb);
+        RAW_STATS_SUMMARY[args.instrFile] = {};
+
+        function updateStats(name) {
+                assert.string(name, 'name');
+                RAW_STATS_SUMMARY[args.instrFile][name] = this.getStats();
+        }
+
+        mbs.on('finish', updateStats.bind(mbs, CLEANUP_STREAM_BATCH));
+        mvs.on('finish', updateStats.bind(mvs, CLEANUP_STREAM_VERIFY));
+        mulrsPR.on('finish',
+                updateStats.bind(mulrsPR, CLEANUP_STREAM_UNLINKPARTS));
+        mulrsUR.on('finish',
+                updateStats.bind(mulrsUR, CLEANUP_STREAM_UNLINKUPLOADDIR));
+        mmcs.on('finish', function () {
+                updateStats.call(mmcs, CLEANUP_STREAM_DELFR);
+
+                /*
+                 * This is the last stream in the pipeline, so invoke the
+                 * caller's callback function.
+                 */
+                args.onFinishCb();
+        });
 
         var mpuGcStreams = new vstream.PipelineStream({
                 streams: [
@@ -328,7 +357,7 @@ function newMpuGcStream(args) {
                         mvs,
                         mulrsPR,
                         mulrsUR,
-                        mmcls
+                        mmcs
                 ],
 
                 streamOpts: {
@@ -338,6 +367,76 @@ function newMpuGcStream(args) {
         });
 
         return (mpuGcStreams);
+}
+
+/*
+ * Given a raw stats object from an MPU GC pipeline stream, format it to be more
+ * informative for users reading the logs.
+ */
+function summarizeStats(stats) {
+        assert.object(stats, 'stats');
+
+        // Total batches in and out of the cleanup pipeline
+        var numInputBatches = stats[CLEANUP_STREAM_BATCH].numBatches;
+        var numOutputBatches = stats[CLEANUP_STREAM_DELFR].numBatchesOutput;
+        var batchSummary = {
+                'Num Input MPUs': numInputBatches,
+                'Num Successfully Processed MPUs': numOutputBatches
+        };
+
+        // Dropped batches broken down by phase
+        var mbsNd, mvsNd, mulrsPRNd, mulrsURNd, mmcsNd;
+        mbsNd = 0; // MpuBatchStream doesn't drop any batches
+        mvsNd = stats[CLEANUP_STREAM_VERIFY].numBatchesDropped;
+        mulrsPRNd = stats[CLEANUP_STREAM_UNLINKPARTS].numBatchesDropped;
+        mulrsURNd = stats[CLEANUP_STREAM_UNLINKUPLOADDIR].numBatchesDropped;
+        mmcsNd = stats[CLEANUP_STREAM_DELFR].numBatchesDropped;
+        var droppedBatchesSummary = {};
+        droppedBatchesSummary[CLEANUP_STREAM_BATCH] = mbsNd;
+        droppedBatchesSummary[CLEANUP_STREAM_VERIFY] = mvsNd;
+        droppedBatchesSummary[CLEANUP_STREAM_UNLINKPARTS] = mulrsPRNd;
+        droppedBatchesSummary[CLEANUP_STREAM_UNLINKUPLOADDIR] = mulrsURNd;
+        droppedBatchesSummary[CLEANUP_STREAM_DELFR] = mmcsNd;
+
+        // Total records seen, as told by the first stream in the pipeline
+        var mvsNpr, mvsNur, mvsNfr, mvsNr;
+        mvsNpr = stats[CLEANUP_STREAM_VERIFY].numPRInput;
+        mvsNur = stats[CLEANUP_STREAM_VERIFY].numURInput;
+        mvsNfr = stats[CLEANUP_STREAM_VERIFY].numFRInput;
+        mvsNr = stats[CLEANUP_STREAM_VERIFY].numRecordsInput;
+        var totalRecordsSummary = {
+                'Part Records': mvsNpr,
+                'Upload Records':  mvsNur,
+                'Finalizing Records':  mvsNfr,
+                'TOTAL': mvsNr
+        };
+
+        // Total records garbage collected
+        var mulrsPRNr, mulrsURNr, mmcsNr;
+        mulrsPRNr = stats[CLEANUP_STREAM_UNLINKPARTS].numRecordsUnlinked;
+        mulrsURNr = stats[CLEANUP_STREAM_UNLINKUPLOADDIR].numRecordsUnlinked;
+        mmcsNr = stats[CLEANUP_STREAM_DELFR].numRecordsDeleted;
+
+        var cleanedRecordsSummary = {
+                'Part Records': mulrsPRNr,
+                'Upload Records': mulrsURNr,
+                'Finalizing Records': mmcsNr,
+                'TOTAL': mulrsPRNr + mulrsURNr + mmcsNr
+        };
+
+        var recordSummary = {
+                'Num Input Records': totalRecordsSummary,
+                'Num Records Deleted/Unlinked': cleanedRecordsSummary
+        };
+
+
+        var sum = {
+                'SUMMARY BY MPU': batchSummary,
+                'SUMMARY BY RECORD TYPE': recordSummary,
+                'BATCHES DROPPED BY PHASE': droppedBatchesSummary
+        };
+
+        return (sum);
 }
 
 /*
@@ -705,10 +804,20 @@ function scriptFinish() {
         MAHI_CLIENT.close();
         MANTA_CLIENT.close();
 
+        var allStats = [];
+        for (var i in completed) {
+                var f = completed[i];
+                allStats.push({
+                        'INSTRUCTION FILE': f,
+                        'STATS': summarizeStats(RAW_STATS_SUMMARY[f])
+                });
+        }
+
         // Log what we did for posterity.
         LOG.info({
                 instrFiles: instrFiles,
-                completed: completed
+                completed: completed,
+                stats: allStats
         }, 'MPU cleanup script finished.');
 
         process.exit(exitCode);
