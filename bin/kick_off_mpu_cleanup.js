@@ -68,7 +68,7 @@ var mpu = require('../lib/mpu');
  * You may also instead specify particular instruction files in Manta to use
  * with the `-r` flag.
  *
- * When the instructions are fetched from Manta, after executing the clenaup
+ * When the instructions are fetched from Manta, after executing the cleanup
  * instructions, the script will unlink the instruction files from their
  * original source directory after making a copy of them in:
  *
@@ -82,14 +82,14 @@ var mpu = require('../lib/mpu');
  * CLEANUP STREAMS IMPLEMENTATION:
  *
  * For each instruction file in $MPU_GC_CLEANUP_DIR, the script will
- * instantiate a pipleine of node streams that perform distinct tasks related
+ * instantiate a pipeline of node streams that perform distinct tasks related
  * to the cleanup of the stream. These tasks are as follows:
  *      1. Parse the instruction file into a stream of lines. (Each line
  *         represents a single record.)
  *      2. Collect records related to the same MPU, based on sorted order, into
  *         a single javascript object.
  *      3. For each MPU, verify that the records match the invariants we know to
- *         be true about finalized mulitpart uploads; for instance, there must
+ *         be true about finalized multipart uploads; for instance, there must
  *         be a finalizing record.
  *      4. For each MPU, unlink all part records, if any exist, from the front
  *         door of Manta.

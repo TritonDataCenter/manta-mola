@@ -21,10 +21,11 @@ new object in Manta, and aborting cancels it, which prevents the upload from
 later being committed.
 
 Parts are represented as objects in Manta, and they are stored in a directory
-referred to as the upload directory of an MPU. We also store an additional
+referred to as the "upload directory" of an MPU. We also store an additional
 record in Moray on the same shard as the target object of the MPU. This record,
-called the "finalizing record", exists allows clients to query the status of
-an MPU shortly after it has been finalized.
+called the "finalizing record", allows clients to query the status of
+an MPU after it has been finalized, for some amount of time before data
+associated with MPU state is cleaned up.
 
 For all finalized MPUs, we leave some garbage in the system that needs to be
 cleaned up. In particular, we need to remove:
@@ -33,16 +34,15 @@ cleaned up. In particular, we need to remove:
 - finalizing records in the Moray `manta_uploads` bucket
 
 It is worth noting that these records do not necessarily exist on the same
-shard. As such, in order to safely determine an MPU can be garbage collected, we
-need a more global view of the system than needed with normal GC.
+shard. As such, in order to determine that an MPU can be safely garbage
+collected, we need a more global view of the system than needed with normal GC.
 
 Finalizing records are removed directly from Moray. Parts and upload directories
 are removed using an operator-only query parameter through the front door of
 Manta. This allows us to do all of the normal verification associated with
-normal object and directory removal, without allowing for deletion of part data
-and MPUs without operator-intervention. This strategy does induce some
-additional latency for garbage collection of parts, as they will incur the grace
-period and tombstone period from normal GC.
+normal object and directory removal. This strategy does induce some additional
+latency for garbage collection of parts, as they will incur the grace period and
+tombstone period from normal GC.
 
 # MPU GC vs. Existing GC
 
@@ -53,14 +53,14 @@ The first half of the process, as with normal GC, is a Manta job that operates
 on Moray shard database dumps. Many of the scripts for MPU GC are modeled
 directly from existing GC scripts and will look quite similar to them.
 
-The second half of the MPU differs much more from normal GC. In normal GC,
-instructions for individual moray zones and mako zones are placed in Manta, and
-executed later by zone. This approach is not tenable for MPU GC, as records for
-a given MPU can exist on more than one shard, and thus we need a more global
-view of the system in order to clean up records in a safe way. Instead, the MPU
-GC job produces one logical list of instructions, corresponding to records
-to delete, which are executed by a cleanup script that deletes records in a
-safe order.
+The second half of the MPU GC process looks much different than normal GC. In
+normal GC, instructions for individual moray zones and mako zones are uploaded
+to Manta, and executed later for each zone. This approach is not tenable for MPU
+GC. Records for a given MPU can exist on more than one shard, and thus we need a
+more global view of the system in order to clean up records in a safe way.
+Instead, the MPU GC job produces one logical list of instructions, which
+represent a list of records to delete. These instructions are carried out by a
+"cleanup" script that deletes records in a safe order.
 
 # MPU GC Implementation Details
 
@@ -107,12 +107,14 @@ together, then sorted in the order of: finalizing record, upload record, part
 records.  The reducer can iterate over these rows and determine whether records
 for a given MPU should be deleted: in particular, that it has a finalizing
 record and that the finalizing record was created before a system-wide grace
-period begun.
+period .
 
-The output of the Marlin job is a set of list of records that can be safely
-deleted by the cleanup script. These output is stored at:
+The output of the Marlin job is a set of instructions lists that can be safely
+deleted by the cleanup script. These outputs are stored at:
 
     /poseidon/stor/manta_mpu_gc/cleanup/[date]-[job_id]-X-[uuid]
+
+There is one output file per reducer in the job.
 
 ## Phase 2: Cleanup
 
@@ -142,12 +144,22 @@ file to:
 
 8. Delete the original cleanup file from Manta.
 
-If at any point in steps 2-6, an error occurs for a given MPU, the MPU will be
-dropped from the stream, and no further records will be garbage collected. This
-is to ensure that records are always deleted in a safe order: the part records
-first, as they are entries in the upload directory, followed by the upload
-directory, followed by the finalizing record, as it is the only definitive
-evidence that an MPU was finalized and thus can be safely garbage collected.
+If at any point in steps 2-6, an error occurs for a given MPU, the script will
+log an error and drop the MPU from the stream. This ensures no other records
+will be garbage collected for the MPU. (The cleanup script itself will continue
+trying to clean up other MPUs in the instructions stream, as they may not be
+affected by the same errors as other MPUs.)
+
+The order of record deletion is key here to ensure MPUs are cleaned up in a safe
+order: The finalizing record must be deleted last, as it is the definitive
+evidence that an MPU was deleted. Parts are entries in the upload directory, so
+they should be deleted prior to the upload directory. This means part records
+are deleted first, followed by the upload directory, followed by the finalizing
+record.
+
+If an MPU could not be fully cleaned up by the cleanup script due to a transient
+error, at the least, the finalizing record is preserved, and the MPU will be
+listed in the instructions produced by the next run of the MPU GC job.
 
 # Running a GC manually
 
@@ -163,7 +175,8 @@ ops$ /opt/smartdc/mola/bin/kick_off_mpu_gc.js | bunyan
 ```
 
 This will use the defaults for the environment.  Note that
-kicking off a GC job requires db dumps to be "recent".  Please refer to the
+kicking off a GC job requires db dumps to be recent -- by default, within the
+past 24 hours.  Please refer to the
 [System Crons](system-crons.md) for the timeline.
 
 If you just want to check on the last job run:
@@ -193,4 +206,5 @@ link its completed input to:
 
 # See Also
 
-* [RFD 65](https://github.com/joyent/rfd/tree/master/rfd/0065): Multipart Uploads for Manta.
+* [RFD 65](https://github.com/joyent/rfd/tree/master/rfd/0065): Multipart
+Uploads for Manta.
