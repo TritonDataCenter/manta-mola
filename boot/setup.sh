@@ -1,4 +1,4 @@
-#!/bin/bash
+#t!/bin/bash
 # -*- mode: shell-script; fill-column: 80; -*-
 #
 # This Source Code Form is subject to the terms of the Mozilla Public
@@ -73,7 +73,6 @@ function manta_setup_mola {
     [[ $? -eq 0 ]] || fatal "Unable import crons"
 
     manta_add_logadm_entry "mola-pg-transform" "/var/log" "exact"
-    manta_add_logadm_entry "mola-mpu-pg-transform" "/var/log" "exact"
     manta_add_logadm_entry "mola" "/var/log" "exact"
     manta_add_logadm_entry "mola-mpu-gc" "/var/log" "exact"
     manta_add_logadm_entry "mola-gc-create-links" "/var/log" "exact"

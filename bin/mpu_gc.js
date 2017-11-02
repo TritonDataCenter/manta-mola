@@ -31,8 +31,7 @@ var LOG = bunyan.createLogger({
 function parseOptions() {
         var option;
         var opts = {};
-        var parser = new getopt.BasicParser('g:',
-                                            process.argv);
+        var parser = new getopt.BasicParser('g:', process.argv);
         while ((option = parser.getopt()) !== undefined && !option.error) {
                 switch (option.option) {
                 case 'g':

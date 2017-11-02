@@ -91,7 +91,7 @@ test('upload directory: one batch (no parts)', function (t) {
                 t.ok(typeof (opts) === 'object');
                 t.ok(jsprim.deepEqual(opts, {
                         query: {
-                                override: true
+                                mpuAllowDeletes: true
                         }
                 }));
                 paths.push(p);
@@ -154,7 +154,7 @@ test('upload directory: one batch (3 parts)', function (t) {
                 t.ok(typeof (opts) === 'object');
                 t.ok(jsprim.deepEqual(opts, {
                         query: {
-                                override: true
+                                mpuAllowDeletes: true
                         }
                 }));
                 paths.push(p);
@@ -231,7 +231,7 @@ test('upload directory: multiple batches', function (t) {
                 t.ok(typeof (opts) === 'object');
                 t.ok(jsprim.deepEqual(opts, {
                         query: {
-                                override: true
+                                mpuAllowDeletes: true
                         }
                 }));
                 paths.push(p);
@@ -311,7 +311,7 @@ test('upload directory: multiple batches (one with no UR)', function (t) {
                 t.ok(typeof (opts) === 'object');
                 t.ok(jsprim.deepEqual(opts, {
                         query: {
-                                override: true
+                                mpuAllowDeletes: true
                         }
                 }));
                 paths.push(p);
@@ -395,7 +395,7 @@ test('upload directory: 404 returned during unlink', function (t) {
                 t.ok(typeof (opts) === 'object');
                 t.ok(jsprim.deepEqual(opts, {
                         query: {
-                                override: true
+                                mpuAllowDeletes: true
                         }
                 }));
                 paths.push(p);
@@ -492,7 +492,7 @@ test('upload directory: error returned during unlink', function (t) {
                 t.ok(typeof (opts) === 'object');
                 t.ok(jsprim.deepEqual(opts, {
                         query: {
-                                override: true
+                                mpuAllowDeletes: true
                         }
                 }));
                 paths.push(p);
@@ -588,7 +588,7 @@ test('upload directory: error returned during getAccountById', function (t) {
                 t.ok(typeof (opts) === 'object');
                 t.ok(jsprim.deepEqual(opts, {
                         query: {
-                                override: true
+                                mpuAllowDeletes: true
                         }
                 }));
                 paths.push(p);
@@ -665,7 +665,7 @@ test('parts: one batch (1 part)', function (t) {
                 t.ok(typeof (opts) === 'object');
                 t.ok(jsprim.deepEqual(opts, {
                         query: {
-                                override: true
+                                mpuAllowDeletes: true
                         }
                 }));
                 paths.push(p);
@@ -729,7 +729,7 @@ test('parts: one batch (3 parts)', function (t) {
                 t.ok(typeof (opts) === 'object');
                 t.ok(jsprim.deepEqual(opts, {
                         query: {
-                                override: true
+                                mpuAllowDeletes: true
                         }
                 }));
                 paths.push(p);
@@ -807,7 +807,7 @@ test('parts: multiple batches (1 part, 3 parts, 0 parts)', function (t) {
                 t.ok(typeof (opts) === 'object');
                 t.ok(jsprim.deepEqual(opts, {
                         query: {
-                                override: true
+                                mpuAllowDeletes: true
                         }
                 }));
                 paths.push(p);
@@ -899,7 +899,7 @@ test('parts: 404 returned during unlink', function (t) {
                 t.ok(typeof (opts) === 'object');
                 t.ok(jsprim.deepEqual(opts, {
                         query: {
-                                override: true
+                                mpuAllowDeletes: true
                         }
                 }));
                 paths.push(p);
@@ -1000,7 +1000,7 @@ test('parts: error returned during unlink', function (t) {
                 t.ok(typeof (opts) === 'object');
                 t.ok(jsprim.deepEqual(opts, {
                         query: {
-                                override: true
+                                mpuAllowDeletes: true
                         }
                 }));
                 paths.push(p);
@@ -1099,7 +1099,7 @@ test('parts: error returned during getAccountById', function (t) {
                 t.ok(typeof (opts) === 'object');
                 t.ok(jsprim.deepEqual(opts, {
                         query: {
-                                override: true
+                                mpuAllowDeletes: true
                         }
                 }));
                 paths.push(p);

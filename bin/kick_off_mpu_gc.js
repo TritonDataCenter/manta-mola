@@ -117,7 +117,7 @@ gzcat -f | \
 /*
  * Returns the command that is run during the reduce phase of the MPU GC job.
  * This phase calls into bin/mpu_gc.js, which is a thin wrapper that calls into
- * lib/mpu_garbage_colector.js, which performs the actual logic of deciding
+ * lib/mpu_garbage_collector.js, which performs the actual logic of deciding
  * what mako and moray actions need to be taken.
  *
  * Inputs:
@@ -135,7 +135,6 @@ function getMpuGcCmd(opts) {
         if (opts.gracePeriodSeconds) {
                 gracePeriodOption = ' -g ' + opts.gracePeriodSeconds;
         }
-        var fileOption = ' -f ' + opts.instrFile;
         /*
          * As the normal GC job does, we use a UUID only because there's no way
          * (yet) to get a reference to which reducer this is running on.
@@ -146,7 +145,7 @@ export UUID=$(uuid) && \
 export MANTA_PRE=/$MANTA_USER/stor/$MANTA_MPU_GC && \
 export MANTA_MPU_GC_CLEANUP_FILE=$MANTA_PRE/cleanup/$NOW-$MARLIN_JOB-X-$UUID && \
 sort | \
-./build/node/bin/node ./bin/mpu_gc.js' + gracePeriodOption + fileOption + ' | \
+./build/node/bin/node ./bin/mpu_gc.js' + gracePeriodOption + ' | \
 mpipe $MANTA_MPU_GC_CLEANUP_FILE \
 ');
 /* END JSSTYLED */
@@ -296,8 +295,9 @@ function getMpuGcJob(opts, cb) {
 }
 
 
-//Expects the filename to be in the format:
-// /.../manta-2012-11-30-23-00-07.gz
+// Expects the filename to be in the format:
+//      /.../manta-2012-11-30-23-00-07.gz
+//
 // Returns: 2012-11-30-23-00-07
 function extractDate(p) {
         var filename = path.basename(p);
