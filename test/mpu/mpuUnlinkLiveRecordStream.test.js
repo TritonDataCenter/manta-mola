@@ -91,7 +91,7 @@ test('upload directory: one batch (no parts)', function (t) {
                 t.ok(typeof (opts) === 'object');
                 t.ok(jsprim.deepEqual(opts, {
                         query: {
-                                mpuAllowDeletes: true
+                                allowMpuDeletes: true
                         }
                 }));
                 paths.push(p);
@@ -154,7 +154,7 @@ test('upload directory: one batch (3 parts)', function (t) {
                 t.ok(typeof (opts) === 'object');
                 t.ok(jsprim.deepEqual(opts, {
                         query: {
-                                mpuAllowDeletes: true
+                                allowMpuDeletes: true
                         }
                 }));
                 paths.push(p);
@@ -231,7 +231,7 @@ test('upload directory: multiple batches', function (t) {
                 t.ok(typeof (opts) === 'object');
                 t.ok(jsprim.deepEqual(opts, {
                         query: {
-                                mpuAllowDeletes: true
+                                allowMpuDeletes: true
                         }
                 }));
                 paths.push(p);
@@ -311,7 +311,7 @@ test('upload directory: multiple batches (one with no UR)', function (t) {
                 t.ok(typeof (opts) === 'object');
                 t.ok(jsprim.deepEqual(opts, {
                         query: {
-                                mpuAllowDeletes: true
+                                allowMpuDeletes: true
                         }
                 }));
                 paths.push(p);
@@ -358,12 +358,7 @@ test('upload directory: multiple batches (one with no UR)', function (t) {
         testMpuUnlinkLiveRecordStream(args);
 });
 
-//TODO: update
 test('upload directory: 404 returned during unlink', function (t) {
-        /*
-         * Deliberately return a 404 for the upload directory. In this case, we
-         * would still expect to see the batch pushed to the next stream.
-         */
         var input = [
                 {
                         uploadId: inputs.ID_0,
@@ -385,6 +380,8 @@ test('upload directory: 404 returned during unlink', function (t) {
                 }
         ];
 
+        var output = [ input[0], input[2] ];
+
         var paths = [];
         var expected = [
                 inputs.PATH_UR0,
@@ -395,7 +392,7 @@ test('upload directory: 404 returned during unlink', function (t) {
                 t.ok(typeof (opts) === 'object');
                 t.ok(jsprim.deepEqual(opts, {
                         query: {
-                                mpuAllowDeletes: true
+                                allowMpuDeletes: true
                         }
                 }));
                 paths.push(p);
@@ -435,7 +432,7 @@ test('upload directory: 404 returned during unlink', function (t) {
 
         var args = {
                 input: input,
-                output: input,
+                output: output,
                 testCb: function cb(ok, actual) {
                         t.ok(ok, 'valid stream output');
                         if (!ok) {
@@ -492,7 +489,7 @@ test('upload directory: error returned during unlink', function (t) {
                 t.ok(typeof (opts) === 'object');
                 t.ok(jsprim.deepEqual(opts, {
                         query: {
-                                mpuAllowDeletes: true
+                                allowMpuDeletes: true
                         }
                 }));
                 paths.push(p);
@@ -588,7 +585,7 @@ test('upload directory: error returned during getAccountById', function (t) {
                 t.ok(typeof (opts) === 'object');
                 t.ok(jsprim.deepEqual(opts, {
                         query: {
-                                mpuAllowDeletes: true
+                                allowMpuDeletes: true
                         }
                 }));
                 paths.push(p);
@@ -665,7 +662,7 @@ test('parts: one batch (1 part)', function (t) {
                 t.ok(typeof (opts) === 'object');
                 t.ok(jsprim.deepEqual(opts, {
                         query: {
-                                mpuAllowDeletes: true
+                                allowMpuDeletes: true
                         }
                 }));
                 paths.push(p);
@@ -729,7 +726,7 @@ test('parts: one batch (3 parts)', function (t) {
                 t.ok(typeof (opts) === 'object');
                 t.ok(jsprim.deepEqual(opts, {
                         query: {
-                                mpuAllowDeletes: true
+                                allowMpuDeletes: true
                         }
                 }));
                 paths.push(p);
@@ -807,7 +804,7 @@ test('parts: multiple batches (1 part, 3 parts, 0 parts)', function (t) {
                 t.ok(typeof (opts) === 'object');
                 t.ok(jsprim.deepEqual(opts, {
                         query: {
-                                mpuAllowDeletes: true
+                                allowMpuDeletes: true
                         }
                 }));
                 paths.push(p);
@@ -857,12 +854,7 @@ test('parts: multiple batches (1 part, 3 parts, 0 parts)', function (t) {
         testMpuUnlinkLiveRecordStream(args);
 });
 
-//TODO: update
 test('parts: 404 returned during unlink', function (t) {
-        /*
-         * Deliberately return a 404 for a part. In this case, we
-         * would still expect to see the batch pushed to the next stream.
-         */
         var input = [
                 {
                         uploadId: inputs.ID_0,
@@ -888,6 +880,8 @@ test('parts: 404 returned during unlink', function (t) {
                 }
         ];
 
+        var output = [ input[0], input[1] ];
+
         var paths = [];
         var expected = [
                 inputs.PATH_PR0[0],
@@ -899,7 +893,7 @@ test('parts: 404 returned during unlink', function (t) {
                 t.ok(typeof (opts) === 'object');
                 t.ok(jsprim.deepEqual(opts, {
                         query: {
-                                mpuAllowDeletes: true
+                                allowMpuDeletes: true
                         }
                 }));
                 paths.push(p);
@@ -939,12 +933,13 @@ test('parts: 404 returned during unlink', function (t) {
 
         var args = {
                 input: input,
-                output: input,
+                output: output,
                 testCb: function cb(ok, actual) {
                         t.ok(ok, 'valid stream output');
                         if (!ok) {
                                 console.error('invalid output', actual);
                         }
+                        console.log(paths, expected);
                         t.ok(jsprim.deepEqual(paths, expected));
                         t.done();
                 },
@@ -1000,7 +995,7 @@ test('parts: error returned during unlink', function (t) {
                 t.ok(typeof (opts) === 'object');
                 t.ok(jsprim.deepEqual(opts, {
                         query: {
-                                mpuAllowDeletes: true
+                                allowMpuDeletes: true
                         }
                 }));
                 paths.push(p);
@@ -1099,7 +1094,7 @@ test('parts: error returned during getAccountById', function (t) {
                 t.ok(typeof (opts) === 'object');
                 t.ok(jsprim.deepEqual(opts, {
                         query: {
-                                mpuAllowDeletes: true
+                                allowMpuDeletes: true
                         }
                 }));
                 paths.push(p);
