@@ -152,6 +152,8 @@ var CLEANUP_STREAM_UNLINKPARTS = 'MpuUnlinkLivePartRecordsStream';
 var CLEANUP_STREAM_UNLINKUPLOADDIR = 'MpuUnlinkLiveUploadRecordStream';
 var CLEANUP_STREAM_DELFR = 'MpuMorayCleanerStream';
 
+var MPU_CLEANUP_DEF_CURRENCY = 10;
+
 var sprintf = util.format;
 
 
@@ -188,6 +190,13 @@ function getOptions() {
                               'instructions. Only remote files, local files, ' +
                               'or the default instruction directory may be ' +
                               'used.'
+                },
+                {
+                        names: ['concurrency', 'c'],
+                        type: 'positiveInteger',
+                        default: MPU_CLEANUP_DEF_CURRENCY,
+                        help: 'Number of cleanup instructions to execute ' +
+                              'concurrently.'
                 },
                 {
                         names: ['help', 'h'],
@@ -761,10 +770,13 @@ function runCleanupInstructions(args, cb) {
         assert.arrayOfObject(args.toCleanup, 'args.toCleanup');
         assert.object(args.mantaClient, 'args.mantaClient');
         assert.object(args.mahiClient, 'args.mahiClient');
+        assert.number(args.concurrency, 'args.concurrency');
         assert.object(args.log, 'args.log');
         assert.optionalBool(args.dryRun, 'args.dryRun');
         assert.optionalBool(args.verbose, 'args.verbose');
         assert.func(cb, 'cb');
+
+        var done = [];
 
         function runCleanup(s, rcb) {
                 assert.object(s, 's');
@@ -780,22 +792,20 @@ function runCleanupInstructions(args, cb) {
                         stream: s.stream,
                         instrFile: s.file
                 }, function () {
-                        rcb(null, true);
+                        done.push(s.file);
+                        rcb();
                 });
         }
 
-        vasync.filter(toCleanup, runCleanup, function (err, results) {
-                if (err) {
-                        cb(err);
-                } else {
-                        completed = [];
-                        results.forEach(function (s) {
-                                completed.push(s.file);
-                        });
-
-                        cb(null, completed);
-                }
+        var q = vasync.queue(runCleanup, args.concurrency);
+        q.on('end', function () {
+                cb(done);
         });
+
+        args.toCleanup.forEach(function (p) {
+                q.push(p);
+        });
+        q.close();
 }
 
 
@@ -954,31 +964,16 @@ if (!userOpts.file) {
                                         mantaClient: MANTA_CLIENT,
                                         mahiClient: MAHI_CLIENT,
                                         log: LOG,
+                                        concurrency: userOpts.concurrency,
                                         dryRun: userOpts.dryRun,
                                         verbose: userOpts.verbose
-                                }, function (err, c) {
-                                        if (err) {
-                                                var incomplete = [];
-                                                toCleanup.forEach(function (s) {
-                                                        incomplete.push(s.file);
-                                                });
-
-                                                LOG.fatal({
-                                                        err: err,
-                                                        instrFiles: incomplete
-                                                }, 'could not finish cleanup');
-
-                                                cb(err);
-                                        } else {
-                                                completed = c;
-
-                                                LOG.info({
-                                                        completed: completed
-                                                }, 'completed MPU GC ' +
-                                                        'cleanup instructions');
-
-                                                cb();
-                                        }
+                                }, function (c) {
+                                        completed = c;
+                                        LOG.info({
+                                                completed: completed
+                                        }, 'completed MPU GC ' +
+                                            'cleanup instructions');
+                                        cb();
                                 });
                         },
 
@@ -1037,25 +1032,11 @@ if (!userOpts.file) {
                 mantaClient: MANTA_CLIENT,
                 mahiClient: MAHI_CLIENT,
                 log: LOG,
+                concurrency: userOpts.concurrency,
                 dryRun: userOpts.dryRun,
                 verbose: userOpts.verbose
-        }, function (err, c) {
-                if (err) {
-                        var incomplete = [];
-                        toCleanup.forEach(function (s) {
-                                incomplete.push(s.file);
-                        });
-
-                        LOG.fatal({
-                                err: err,
-                                instrFiles: incomplete
-                        }, 'could not complete cleanup');
-
-                        exitCode = 1;
-                } else {
-                        completed = c;
-                }
-
+        }, function (c) {
+                completed = c;
                 scriptFinish();
         });
 }
