@@ -1,4 +1,4 @@
-#t!/bin/bash
+#!/bin/bash
 # -*- mode: shell-script; fill-column: 80; -*-
 #
 # This Source Code Form is subject to the terms of the Mozilla Public

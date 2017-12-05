@@ -9,6 +9,7 @@
  */
 
 var assert = require('assert-plus');
+var events = require('events');
 var fs = require('fs');
 var jsprim = require('jsprim');
 var lstream = require('lstream');
@@ -44,14 +45,31 @@ function testMpuMorayCleanerStream(args) {
 
         var mockMorayClients = {};
         var clientsClosed = [];
+
+        function MockMorayClient(opts) {
+                assert.object(opts, 'opts');
+                assert.string(opts.shard, 'opts.shard');
+
+                var self = this;
+                self.id = opts.shard;
+                self.delObject = opts.delObjectFunc;
+        }
+        util.inherits(MockMorayClient, events.EventEmitter);
+        MockMorayClient.prototype.close = function () {
+                clientsClosed.push(this.id);
+        };
+
         args.shards.forEach(function (i) {
+                var client = new MockMorayClient({
+                        shard: i,
+                        delObjectFunc: args.delObjectFunc
+                });
                 mockMorayClients[i] = {
-                        id: i,
-                        delObject: args.delObjectFunc,
-                        close: function close() {
-                                clientsClosed.push(i);
-                        }
+                        client: client,
+                        connected: false
                 };
+
+                setImmediate(client.emit.bind(client, 'connect'));
         });
 
         var mmcs = new mpu.createMpuMorayCleanerStream({
