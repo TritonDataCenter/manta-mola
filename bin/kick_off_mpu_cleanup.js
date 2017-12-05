@@ -207,7 +207,7 @@ function getOptions() {
 
         function usage() {
                 var str  = 'usage: ' + path.basename(process.argv[1]);
-                str += ' [-n] [-v] [-d] [-t]';
+                str += ' [-n] [-v] [-c]';
                 console.log(str);
                 console.log(help);
         }
