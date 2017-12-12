@@ -218,6 +218,14 @@ test('upload directory: multiple batches', function (t) {
                         uploadId: inputs.ID_2,
                         finalizingRecord: inputs.OBJ_FR2,
                         uploadRecord: inputs.OBJ_UR2
+                },
+                {
+                        uploadId: inputs.ID_3,
+                        finalizingRecord: inputs.OBJ_FR3,
+                        uploadRecord: inputs.OBJ_UR3,
+                        partRecords: [
+                                inputs.OBJ_PR3[0]
+                        ]
                 }
         ];
 
@@ -225,7 +233,8 @@ test('upload directory: multiple batches', function (t) {
         var expected = [
                 inputs.PATH_UR0,
                 inputs.PATH_UR1,
-                inputs.PATH_UR2
+                inputs.PATH_UR2,
+                inputs.PATH_UR3
         ];
         function unlink(p, opts, ucb) {
                 t.ok(typeof (opts) === 'object');
@@ -766,7 +775,8 @@ test('parts: one batch (3 parts)', function (t) {
         testMpuUnlinkLiveRecordStream(args);
 });
 
-test('parts: multiple batches (1 part, 3 parts, 0 parts)', function (t) {
+test('parts: multiple batches (1 part, 3 parts, 0 parts, 1 part)',
+function (t) {
         var input = [
                 {
                         uploadId: inputs.ID_0,
@@ -790,7 +800,16 @@ test('parts: multiple batches (1 part, 3 parts, 0 parts)', function (t) {
                         uploadId: inputs.ID_2,
                         finalizingRecord: inputs.OBJ_FR2,
                         uploadRecord: inputs.OBJ_UR2
+                },
+                {
+                        uploadId: inputs.ID_3,
+                        finalizingRecord: inputs.OBJ_FR3,
+                        uploadRecord: inputs.OBJ_UR3,
+                        partRecords: [
+                                inputs.OBJ_PR3[0]
+                        ]
                 }
+
         ];
 
         var paths = [];
@@ -798,7 +817,8 @@ test('parts: multiple batches (1 part, 3 parts, 0 parts)', function (t) {
                 inputs.PATH_PR0[0],
                 inputs.PATH_PR1[0],
                 inputs.PATH_PR1[1],
-                inputs.PATH_PR1[2]
+                inputs.PATH_PR1[2],
+                inputs.PATH_PR3[0]
         ];
         function unlink(p, opts, ucb) {
                 t.ok(typeof (opts) === 'object');

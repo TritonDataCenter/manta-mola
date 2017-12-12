@@ -187,7 +187,9 @@ function getOptions() {
                         names: ['remoteFile', 'r'],
                         type: 'arrayOfString',
                         help: 'File in Manta to use for cleanup ' +
-                              'instructions. Only remote files, local files, ' +
+                              'instructions. Remote instructions are not ' +
+                              'deleted or uploaded as completed to Manta. ' +
+                               'Only remote files, local files, ' +
                               'or the default instruction directory may be ' +
                               'used.'
                 },
@@ -296,7 +298,8 @@ function newMpuGcStream(args) {
                         log: args.log.child({
                                 step: 3,
                                 streamName: CLEANUP_STREAM_UNLINKPARTS,
-                                instrFile: args.instrFile
+                                instrFile: args.instrFile,
+                                type: 'partRecords'
                         }),
                         dryRun: args.dryRun,
                         verbose: args.verbose,
@@ -311,7 +314,8 @@ function newMpuGcStream(args) {
                         log: args.log.child({
                                 step: 4,
                                 streamName: CLEANUP_STREAM_UNLINKUPLOADDIR,
-                                instrFile: args.instrFile
+                                instrFile: args.instrFile,
+                                type: 'uploadRecord'
                         }),
                         dryRun: args.dryRun,
                         verbose: args.verbose,
@@ -713,11 +717,13 @@ function linkAndDelCompleted(args, cb) {
         vasync.forEachParallel({
                 inputs: args.completed,
                 func: function linkAndDel(p, lcb) {
+                        var src = p;
+                        var dest = args.completedDir + '/' + path.basename(p);
+
                         vasync.pipeline({
                                 arg: {
-                                        src: p,
-                                        dest: args.completedDir + '/' +
-                                                path.basename(p),
+                                        src: src,
+                                        dest: dest,
                                         client: args.mantaClient
                                 },
                                 funcs: [
@@ -984,6 +990,12 @@ if (!userOpts.file) {
                          * directory.
                          */
                         function linkAndDelCompletedInstructions(_, cb) {
+                                // Skip this step for remote mode.
+                                if (userOpts.remoteFile) {
+                                        setImmediate(cb);
+                                        return;
+                                }
+
                                 linkAndDelCompleted({
                                         mantaClient: MANTA_CLIENT,
                                         log: LOG,

@@ -173,6 +173,57 @@ var OBJ_UR2 = new mpuCommon.LiveRecord({
 });
 assert.object(OBJ_UR2, 'failed to create test upload record 2 obj');
 
+
+// Batch 3: Committed MPU with finalizing record, upload record, 1 part records,
+// and account uuid different from object path account
+var ID_3 = 'b3d58ef4-2277-4248-8cf0-c4243c4b0f83';
+var DATE_3 =  new Date();
+var SHARD_3 =  MORAY_2;
+/* BEGIN JSSTYLED */
+var KEY_FR3 = ID_3 + ':/1293dc6e-05a3-4651-baa3-1f74932f81b3/stor/batch3';
+var KEY_UR3 = '/4204a7f8-3d97-ec27-c16d-f2f49366cc3c/uploads/b/b3d58ef4-2277-4248-8cf0-c4243c4b0f83';
+var KEY_PR3_0 = '/4204a7f8-3d97-ec27-c16d-f2f49366cc3c/uploads/b/b3d58ef4-2277-4248-8cf0-c4243c4b0f83/0';
+/* END JSSTYLED */
+var FR_3 = [ ID_3, '0_finalizingRecord', DATE_3, SHARD_3, 'commit', KEY_FR3 ]
+        .join('\t');
+var UR_3 = [ ID_3, '1_uploadRecord', DATE_3, KEY_UR3 ].join('\t');
+var PR_3 = [ [ ID_3, '2_partRecord', DATE_3, KEY_PR3_0 ].join('\t') ];
+var OBJ_FR3 = new mpuCommon.FinalizingRecord({
+        uploadId: ID_3,
+        key: KEY_FR3,
+        shard: SHARD_3,
+        date: DATE_3,
+        type: 'commit'
+});
+assert.object(OBJ_FR3, 'failed to create test finalizing record 3 obj');
+var OBJ_UR3 = new mpuCommon.LiveRecord({
+        uploadId: ID_3,
+        key: KEY_UR3,
+        date: DATE_3,
+        type: 'uploadRecord'
+});
+assert.object(OBJ_UR3, 'failed to create test upload record 3 obj');
+var OBJ_PR3 = [
+        new mpuCommon.LiveRecord({
+                uploadId: ID_3,
+                key: KEY_PR3_0,
+                date: DATE_3,
+                type: 'partRecord'
+        })
+];
+OBJ_PR3.forEach(function (o) {
+        assert.object(o, 'failed to create test part record 3 obj');
+});
+var ACCT_ID_3 = '4204a7f8-3d97-ec27-c16d-f2f49366cc3c';
+var ACCT_LOGIN_3 = 'testuser0';
+var PATH_UR3 = '/' + ACCT_LOGIN_3 +
+        '/uploads/b/b3d58ef4-2277-4248-8cf0-c4243c4b0f83';
+var PATH_PR3 = [
+        '/' + ACCT_LOGIN_3 + '/uploads/b/b3d58ef4-2277-4248-8cf0-c4243c4b0f83/0'
+];
+
+
+
 function ValidationStream(args) {
         assert.object(args, 'args');
         assert.func(args.cb, 'args.cb');
@@ -248,6 +299,23 @@ module.exports = {
         ACCT_ID_2: ACCT_ID_2,
         ACCT_LOGIN_2: ACCT_LOGIN_2,
         PATH_UR2: PATH_UR2,
+
+        ID_3: ID_3,
+        DATE_3: DATE_3,
+        SHARD_3: SHARD_3,
+        KEY_FR3: KEY_FR3,
+        KEY_UR3: KEY_UR3,
+        KEY_PR3_0: KEY_PR3_0,
+        FR_3: FR_3,
+        UR_3: UR_3,
+        PR_3: PR_3,
+        OBJ_FR3: OBJ_FR3,
+        OBJ_UR3: OBJ_UR3,
+        OBJ_PR3: OBJ_PR3,
+        ACCT_ID_3: ACCT_ID_3,
+        ACCT_LOGIN_3: ACCT_LOGIN_3,
+        PATH_UR3: PATH_UR3,
+        PATH_PR3: PATH_PR3,
 
         ValidationStream: ValidationStream
 };
