@@ -809,7 +809,6 @@ function (t) {
                                 inputs.OBJ_PR3[0]
                         ]
                 }
-
         ];
 
         var paths = [];
