@@ -66,7 +66,7 @@ var mpu = require('../lib/mpu');
  *      /poseidon/stor/manta_mpu_gc/cleanup
  *
  * You may also instead specify particular instruction files in Manta to use
- * with the `-r` flag.
+ * with the `-r` or `-i` flags.
  *
  * When the instructions are fetched from Manta, after executing the cleanup
  * instructions, the script will unlink the instruction files from their
@@ -75,7 +75,7 @@ var mpu = require('../lib/mpu');
  *      /poseidon/stor/manta_mpu_gc/completed
  *
  * For debugging purposes, it is often useful to to specify local copies of
- * instruction files instead. You may specify local files using the `-r` flag.
+ * instruction files instead. You may specify local files using the `-f` flag.
  * Local files are not uploaded in any fashion to Manta.
  *
  *
@@ -112,8 +112,8 @@ var mpu = require('../lib/mpu');
  * A combination of the `-n` and `-v` flags is useful to see what the script
  * would do without deletion of any data, including instruction files.
  *
- * Using the `-r` or `-f` flags allow you to run the script on a particular
- * input file.
+ * Using the `-r`, `-f` or `-i` flags allow you to run the script on
+ * particular input files.
  *
  * This script uses bunyan logging to document its progress. Such log messages
  * may be useful for debugging problems.
@@ -178,10 +178,11 @@ function getOptions() {
                         names: ['file', 'f'],
                         type: 'arrayOfString',
                         help: 'Local file to use for cleanup instructions. ' +
-                              'Only remote files, local files, or the ' +
-                              'default instruction directory may be used. ' +
+                              'Only remote files, local files, or an ' +
+                              'instruction directory in Manta may be used. ' +
                               'Local files will not be uploaded to Manta ' +
-                              'after processing. '
+                              'after processing. ',
+                        helpArg: 'FILE'
                 },
                 {
                         names: ['remoteFile', 'r'],
@@ -190,8 +191,9 @@ function getOptions() {
                               'instructions. Remote instructions are not ' +
                               'deleted or uploaded as completed to Manta. ' +
                                'Only remote files, local files, ' +
-                              'or the default instruction directory may be ' +
-                              'used.'
+                              'or an instruction directory in Manta may be ' +
+                              'used.',
+                        helpArg: 'FILE'
                 },
                 {
                         names: ['concurrency', 'c'],
@@ -201,21 +203,40 @@ function getOptions() {
                               'concurrently.'
                 },
                 {
+                        names: ['cleanupDir', 'i'],
+                        type: 'string',
+                        default: MPU_GC_CLEANUP_DIR,
+                        help: 'Directory in Manta to look for cleanup ' +
+                              'instructions. After processing, instruction ' +
+                              'files in this directory will be linked to a ' +
+                              'completed instructions directory, and the ' +
+                              'original files will be deleted from Manta. ' +
+                              'Use this flag in conjunction with -d to ' +
+                              'specify a completed instructions directory; ' +
+                              'otherwise, the default completed directory ' +
+                              'will be used. ',
+                        helpArg: 'DIR'
+                },
+                {
+                        names: ['completedDir', 'd'],
+                        type: 'string',
+                        default: MPU_GC_COMPLETED_DIR,
+                        help: 'Directory in Manta to store completed cleanup ' +
+                              'instructions. ' +
+                              'Use this flag in conjunction with -i to ' +
+                              'specify a cleanup instructions directory; ' +
+                              'otherwise, the default cleanup directory ' +
+                              'will be used.',
+                        helpArg: 'DIR'
+                },
+                {
                         names: ['help', 'h'],
                         type: 'bool',
                         help: 'Print this help and exit.'
                 }
         ];
 
-        function usage() {
-                var str  = 'usage: ' + path.basename(process.argv[1]);
-                str += ' [-n] [-v] [-c]';
-                console.log(str);
-                console.log(help);
-        }
-
         var parser = dashdash.createParser({options: options});
-        var help = parser.help().trimRight();
         var o;
         try {
                 o = parser.parse(process.argv);
@@ -223,6 +244,14 @@ function getOptions() {
                 console.error('error: %s', e.message);
                 usage();
                 process.exit(1);
+        }
+
+        function usage() {
+                var help = 'usage: ' + path.basename(process.argv[1]);
+                help += ' [OPTIONS]\n\n';
+                help += 'options:\n';
+                help += parser.help().trimRight();
+                console.log(help);
         }
 
         if (o.help) {
@@ -393,8 +422,8 @@ function summarizeStats(stats) {
         var numInputBatches = stats[CLEANUP_STREAM_BATCH].numBatches;
         var numOutputBatches = stats[CLEANUP_STREAM_DELFR].numBatchesOutput;
         var batchSummary = {
-                'Num Input MPUs': numInputBatches,
-                'Num Successfully Processed MPUs': numOutputBatches
+                'numInput': numInputBatches,
+                'numProcessed': numOutputBatches
         };
 
         // Dropped batches broken down by phase
@@ -418,10 +447,10 @@ function summarizeStats(stats) {
         mvsNfr = stats[CLEANUP_STREAM_VERIFY].numFRInput;
         mvsNr = stats[CLEANUP_STREAM_VERIFY].numRecordsInput;
         var totalRecordsSummary = {
-                'Part Records': mvsNpr,
-                'Upload Records':  mvsNur,
-                'Finalizing Records':  mvsNfr,
-                'TOTAL': mvsNr
+                'partRecords': mvsNpr,
+                'uploadRecords':  mvsNur,
+                'finalizingRecords':  mvsNfr,
+                'total': mvsNr
         };
 
         // Total records garbage collected
@@ -431,22 +460,22 @@ function summarizeStats(stats) {
         mmcsNr = stats[CLEANUP_STREAM_DELFR].numRecordsDeleted;
 
         var cleanedRecordsSummary = {
-                'Part Records': mulrsPRNr,
-                'Upload Records': mulrsURNr,
-                'Finalizing Records': mmcsNr,
-                'TOTAL': mulrsPRNr + mulrsURNr + mmcsNr
+                'partRecords': mulrsPRNr,
+                'uploadRecords': mulrsURNr,
+                'finalizingRecords': mmcsNr,
+                'total': mulrsPRNr + mulrsURNr + mmcsNr
         };
 
         var recordSummary = {
-                'Num Input Records': totalRecordsSummary,
-                'Num Records Deleted/Unlinked': cleanedRecordsSummary
+                'numInputRecords': totalRecordsSummary,
+                'numRecordsRemoved': cleanedRecordsSummary
         };
 
 
         var sum = {
-                'SUMMARY BY MPU': batchSummary,
-                'SUMMARY BY RECORD TYPE': recordSummary,
-                'BATCHES DROPPED BY PHASE': droppedBatchesSummary
+                'summaryByMpu': batchSummary,
+                'summaryByRecordType': recordSummary,
+                'numBatchesDroppedByPhase': droppedBatchesSummary
         };
 
         return (sum);
@@ -769,7 +798,7 @@ function linkAndDelCompleted(args, cb) {
  *        cleanup (no deletion of metadata records)
  *      - verbose: optional bool, which, if true, will print out each action
  *        taken by the cleanup streams to stderr
- * - cb: callback function of the form cb(err, completed)
+ * - cb: callback function of the form cb(completed)
  */
 function runCleanupInstructions(args, cb) {
         assert.object(args, 'args');
@@ -808,9 +837,7 @@ function runCleanupInstructions(args, cb) {
                 cb(done);
         });
 
-        args.toCleanup.forEach(function (p) {
-                q.push(p);
-        });
+        q.push(args.toCleanup);
         q.close();
 }
 
@@ -824,8 +851,8 @@ function scriptFinish() {
         for (var i in completed) {
                 var f = completed[i];
                 allStats.push({
-                        'INSTRUCTION FILE': f,
-                        'STATS': summarizeStats(RAW_STATS_SUMMARY[f])
+                        'instructionFile': f,
+                        'stats': summarizeStats(RAW_STATS_SUMMARY[f])
                 });
         }
 
@@ -894,7 +921,7 @@ if (!userOpts.file) {
                                         return;
                                 }
 
-                                var dir = MPU_GC_CLEANUP_DIR;
+                                var dir = userOpts.cleanupDir;
 
                                 getInputsFromDir({
                                         mantaClient: MANTA_CLIENT,
@@ -1000,7 +1027,7 @@ if (!userOpts.file) {
                                         mantaClient: MANTA_CLIENT,
                                         log: LOG,
                                         completed: completed,
-                                        completedDir: MPU_GC_COMPLETED_DIR,
+                                        completedDir: userOpts.completedDir,
                                         dryRun: userOpts.dryRun,
                                         verbose: userOpts.verbose
                                 }, function (err) {
