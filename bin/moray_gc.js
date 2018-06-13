@@ -46,6 +46,7 @@ var MORAY_CLEANUP_PATH = '/' + MANTA_USER + '/stor/manta_gc/moray';
 var PID_FILE = '/var/tmp/moray_gc.pid';
 var CRON_START = new Date();
 var MORAY_CLEANER = lib.createMorayCleaner({ log: LOG, batchSize: 1000 });
+var MANTA_DELETE_BUCKET = 'manta_delete_log';
 MORAY_CLEANER.on('error', function (err) {
         LOG.fatal(err);
         var returnCode = auditCron(err);
@@ -80,7 +81,8 @@ function cleanShardOneObject(log, shard, input, cb) {
                  */
                 var mcs = MORAY_CLEANER.cleanStream({
                         shard: shard,
-                        object: input
+                        object: input,
+                        bucket: MANTA_DELETE_BUCKET
                 });
 
                 mcs.once('error', function (mcsErr) {
