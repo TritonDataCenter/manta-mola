@@ -23,7 +23,6 @@ var util = require('util');
 var vasync = require('vasync');
 var vstream = require('vstream');
 
-var lib = require('../lib');
 var mpu = require('../lib/mpu');
 
 /*
@@ -899,6 +898,16 @@ var toCleanup;
  * in `toCleanup`.
  */
 var completed;
+
+if (CONFIG.disableAllJobs === true) {
+        LOG.info('All jobs are disabled, exiting.');
+        process.exit(exitCode);
+}
+
+if (CONFIG.gcEnabled === false) {
+        LOG.info('GC is disabled, exiting.');
+        process.exit(exitCode);
+}
 
 if (!userOpts.file) {
         /*

@@ -6,7 +6,7 @@
  */
 
 /*
- * Copyright (c) 2017, Joyent, Inc.
+ * Copyright (c) 2018, Joyent, Inc.
  */
 
 var assert = require('assert-plus');
@@ -147,6 +147,7 @@ function parseOptions() {
         opts.assetFile = opts.assetFile ||
                 '/opt/smartdc/common/bundle/mola.tar.gz';
 
+        opts.jobEnabled = opts.auditEnabled;
         opts.auditMapDisk = opts.auditMapDisk || 32;
         opts.auditReduceMemory = opts.auditReduceMemory || 4096;
         opts.auditReduceDisk = opts.auditReduceDisk || 16;

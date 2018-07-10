@@ -211,6 +211,7 @@ function parseOptions() {
         opts.assetFile = opts.assetFile ||
                 '/opt/smartdc/common/bundle/mola.tar.gz';
 
+        opts.jobEnabled = opts.gcEnabled;
         opts.gcMapDisk = opts.gcMapDisk || 32;
         opts.gcReduceMemory = opts.gcReduceMemory || 8192;
         opts.gcReduceDisk = opts.gcReduceDisk || 32;

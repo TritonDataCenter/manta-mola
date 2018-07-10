@@ -7,7 +7,7 @@
  */
 
 /*
- * Copyright (c) 2017, Joyent, Inc.
+ * Copyright (c) 2018, Joyent, Inc.
  */
 
 /*
@@ -19,6 +19,7 @@ require('../lib/maxsockets')(256);
 
 var assert = require('assert-plus');
 var bunyan = require('bunyan');
+var fs = require('fs');
 var common = require('../lib').common;
 var getopt = require('posix-getopt');
 var manta = require('manta');
@@ -38,6 +39,7 @@ var LOG = bunyan.createLogger({
 });
 var MANTA_CONFIG = (process.env.MANTA_CONFIG ||
                     '/opt/smartdc/common/etc/config.json');
+var MANTA_CONFIG_OBJ = JSON.parse(fs.readFileSync(MANTA_CONFIG));
 var MANTA_CLIENT = manta.createClientFromFileSync(MANTA_CONFIG, LOG);
 var MANTA_USER = MANTA_CLIENT.user;
 var MANTA_DIR = '/' + MANTA_USER + '/stor/manta_gc/all/do';
@@ -73,6 +75,7 @@ function parseOptions() {
 
         //Set up some defaults...
         opts.mantaDir = opts.mantaDir || MANTA_DIR;
+        opts.jobEnabled = MANTA_CONFIG_OBJ.gcEnabled;
 
         return (opts);
 }
@@ -301,6 +304,17 @@ function createGcLinks(opts, cb) {
                 'client': MANTA_CLIENT,
                 'dir': opts.mantaDir
         };
+
+        console.log(opts);
+        if (opts.disableAllJobs === true) {
+                cb(new VE({ 'name': 'JobDisabled' }, 'all jobs are disabled'));
+                return;
+        }
+        if (opts.jobEnabled === false) {
+                cb(new VE({ 'name': 'JobDisabled' }, 'GC job is disabled'));
+                return;
+        }
+
         common.getObjectsInDir(gopts, function (err, objs) {
                 if (err && err.code === 'ResourceNotFound') {
                         LOG.info('GC not ready yet: ' + opts.mantaDir +
