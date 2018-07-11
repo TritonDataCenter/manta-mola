@@ -40,17 +40,15 @@ var LOG = bunyan.createLogger({
 });
 var MANTA_CONFIG = (process.env.MANTA_CONFIG ||
                     '/opt/smartdc/common/etc/config.json');
+var MOLA_CONFIG = (process.env.MOLA_CONFIG ||
+                    '/opt/smartdc/mola/etc/config.json');
+var MOLA_CONFIG_OBJ = JSON.parse(fs.readFileSync(MOLA_CONFIG));
 var MANTA_CLIENT = manta.createClientFromFileSync(MANTA_CONFIG, LOG);
 var MANTA_USER = MANTA_CLIENT.user;
 var MORAY_CLEANUP_PATH = '/' + MANTA_USER + '/stor/manta_gc/moray';
 var PID_FILE = '/var/tmp/moray_gc.pid';
 var CRON_START = new Date();
-var MORAY_CLEANER = lib.createMorayCleaner({ log: LOG, batchSize: 1000 });
-MORAY_CLEANER.on('error', function (err) {
-        LOG.fatal(err);
-        var returnCode = auditCron(err);
-        process.exit(returnCode);
-});
+
 
 
 /*
@@ -356,6 +354,25 @@ function auditCron(err) {
         return (audit.cronFailed);
 }
 
+///--- Main
+
+if (MOLA_CONFIG_OBJ.disableAllJobs === true) {
+        LOG.info('All jobs are disabled, exiting.');
+        process.exit(0);
+}
+
+if (MOLA_CONFIG_OBJ.gcEnabled === false) {
+        LOG.info('GC is disabled, exiting.');
+        process.exit(0);
+}
+
+
+var MORAY_CLEANER = lib.createMorayCleaner({ log: LOG, batchSize: 1000 });
+MORAY_CLEANER.on('error', function (err) {
+        LOG.fatal(err);
+        var returnCode = auditCron(err);
+        process.exit(returnCode);
+});
 
 checkAlreadyRunning(function (err) {
         if (err) {

@@ -169,7 +169,6 @@ function parseOptions() {
         opts.assetFile = opts.assetFile ||
                 '/opt/smartdc/common/bundle/mola.tar.gz';
 
-        opts.jobEnabled = opts.cruftEnabled;
         opts.cruftMapDisk = opts.cruftMapDisk || 32;
         opts.cruftReduceMemory = opts.cruftReduceMemory || 4096;
         opts.cruftReduceDisk = opts.cruftReduceDisk || 16;

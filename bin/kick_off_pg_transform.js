@@ -214,6 +214,8 @@ function startJobForObject(opts, cb) {
         var jopts = {
                 'jobName': jobName,
                 'jobRoot': jjobRoot,
+                'jobEnabled': opts.jobEnabled,
+                'disableAllJobs': opts.disableAllJobs,
                 'morayDumpObject': object,
                 'getJobObjects': function (_, subcb) {
                         return (subcb(null, [ object.path ]));

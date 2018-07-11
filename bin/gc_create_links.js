@@ -27,8 +27,9 @@ var path = require('path');
 var vasync = require('vasync');
 var stream = require('stream');
 var lstream = require('lstream');
+var verror = require('verror');
 
-var VE = require('verror').VError;
+var VE = verror.VError;
 
 
 var NAME = 'moray_gc_create_links';
@@ -39,7 +40,9 @@ var LOG = bunyan.createLogger({
 });
 var MANTA_CONFIG = (process.env.MANTA_CONFIG ||
                     '/opt/smartdc/common/etc/config.json');
-var MANTA_CONFIG_OBJ = JSON.parse(fs.readFileSync(MANTA_CONFIG));
+var MOLA_CONFIG = (process.env.MOLA_CONFIG ||
+                    '/opt/smartdc/mola/etc/config.json');
+var MOLA_CONFIG_OBJ = JSON.parse(fs.readFileSync(MOLA_CONFIG));
 var MANTA_CLIENT = manta.createClientFromFileSync(MANTA_CONFIG, LOG);
 var MANTA_USER = MANTA_CLIENT.user;
 var MANTA_DIR = '/' + MANTA_USER + '/stor/manta_gc/all/do';
@@ -75,7 +78,8 @@ function parseOptions() {
 
         //Set up some defaults...
         opts.mantaDir = opts.mantaDir || MANTA_DIR;
-        opts.jobEnabled = MANTA_CONFIG_OBJ.gcEnabled;
+        opts.jobEnabled = MOLA_CONFIG_OBJ.gcEnabled;
+        opts.disableAllJobs = MOLA_CONFIG_OBJ.disableAllJobs;
 
         return (opts);
 }
@@ -305,7 +309,6 @@ function createGcLinks(opts, cb) {
                 'dir': opts.mantaDir
         };
 
-        console.log(opts);
         if (opts.disableAllJobs === true) {
                 cb(new VE({ 'name': 'JobDisabled' }, 'all jobs are disabled'));
                 return;
@@ -350,7 +353,11 @@ var _opts = parseOptions();
 
 createGcLinks(_opts, function (err) {
         if (err) {
-                LOG.fatal(err, 'Error.');
+                if (verror.hasCauseWithName(err, 'JobDisabled')) {
+                        LOG.info(err);
+                } else {
+                        LOG.fatal(err, 'Error.');
+                }
         } else {
                 AUDIT.cronFailed = 0;
         }

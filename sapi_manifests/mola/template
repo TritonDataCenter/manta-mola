@@ -45,5 +45,6 @@
     "rebalanceMemory": {{REBALANCE_MEMORY}}{{/REBALANCE_MEMORY}}{{#PG_MAP_DISK}},
     "pgMapDisk": {{PG_MAP_DISK}}{{/PG_MAP_DISK}}{{#PG_MAP_MEMORY}},
     "pgMapMemory": {{PG_MAP_MEMORY}}{{/PG_MAP_MEMORY}}{{#PG_ENABLED}},
-    "pgEnabled": {{PG_ENABLED}}{{/PG_ENABLED}}
+    "pgEnabled": {{PG_ENABLED}}{{/PG_ENABLED}}{{#DISABLE_ALL_JOBS}},
+    "disableAllJobs": {{DISABLE_ALL_JOBS}}{{/DISABLE_ALL_JOBS}}
 }
