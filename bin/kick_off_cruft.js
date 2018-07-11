@@ -6,7 +6,7 @@
  */
 
 /*
- * Copyright (c) 2018, Joyent, Inc.
+ * Copyright (c) 2017, Joyent, Inc.
  */
 
 var assert = require('assert-plus');
