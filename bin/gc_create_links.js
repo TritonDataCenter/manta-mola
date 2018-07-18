@@ -310,12 +310,12 @@ function createGcLinks(opts, cb) {
                 'dir': opts.mantaDir
         };
 
-        if (opts.disableAllJobs === true || opts.disableAllJobs === 'true') {
+        if (opts.disableAllJobs === true) {
                 cb(new VE({ 'name': JOB_DISABLED_ERR },
                         'all jobs are disabled'));
                 return;
         }
-        if (opts.jobEnabled === false || opts.jobEnabled === 'false') {
+        if (opts.jobEnabled === false) {
                 cb(new VE({ 'name': JOB_DISABLED_ERR }, 'GC job is disabled'));
                 return;
         }

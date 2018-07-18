@@ -899,12 +899,12 @@ var toCleanup;
  */
 var completed;
 
-if (CONFIG.disableAllJobs === true || CONFIG.disableAllJobs === 'true') {
+if (CONFIG.disableAllJobs === true) {
         LOG.info('All jobs are disabled, exiting.');
         process.exit(exitCode);
 }
 
-if (CONFIG.gcEnabled === false || CONFIG.gcEnabled === 'false') {
+if (CONFIG.gcEnabled === false) {
         LOG.info('GC is disabled, exiting.');
         process.exit(exitCode);
 }
