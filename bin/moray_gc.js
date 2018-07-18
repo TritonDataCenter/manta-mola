@@ -357,14 +357,14 @@ function auditCron(err) {
 ///--- Main
 
 if (MOLA_CONFIG_OBJ.disableAllJobs === true ||
-    MOLA_CONFIG_OBJ.disableAllJobs === 'true') {
+        MOLA_CONFIG_OBJ.disableAllJobs === 'true') {
 
         LOG.info('All jobs are disabled, exiting.');
         process.exit(0);
 }
 
 if (MOLA_CONFIG_OBJ.gcEnabled === false ||
-    MOLA_CONFIG_OBJ.gcEnabled === 'false') {
+        MOLA_CONFIG_OBJ.gcEnabled === 'false') {
 
         LOG.info('GC is disabled, exiting.');
         process.exit(0);

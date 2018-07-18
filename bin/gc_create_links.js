@@ -311,7 +311,8 @@ function createGcLinks(opts, cb) {
         };
 
         if (opts.disableAllJobs === true || opts.disableAllJobs === 'true') {
-                cb(new VE({ 'name': JOB_DISABLED_ERR }, 'all jobs are disabled'));
+                cb(new VE({ 'name': JOB_DISABLED_ERR },
+                        'all jobs are disabled'));
                 return;
         }
         if (opts.jobEnabled === false || opts.jobEnabled === 'false') {
