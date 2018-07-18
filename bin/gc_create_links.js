@@ -54,6 +54,7 @@ var AUDIT = {
         'startTime': new Date()
 };
 var DIR_CACHE = {};
+var JOB_DISABLED_ERR = 'JobDisabled';
 
 
 function parseOptions() {
@@ -309,12 +310,12 @@ function createGcLinks(opts, cb) {
                 'dir': opts.mantaDir
         };
 
-        if (opts.disableAllJobs === true) {
-                cb(new VE({ 'name': 'JobDisabled' }, 'all jobs are disabled'));
+        if (opts.disableAllJobs === true || opts.disableAllJobs === 'true') {
+                cb(new VE({ 'name': JOB_DISABLED_ERR }, 'all jobs are disabled'));
                 return;
         }
-        if (opts.jobEnabled === false) {
-                cb(new VE({ 'name': 'JobDisabled' }, 'GC job is disabled'));
+        if (opts.jobEnabled === false || opts.jobEnabled === 'false') {
+                cb(new VE({ 'name': JOB_DISABLED_ERR }, 'GC job is disabled'));
                 return;
         }
 
@@ -353,7 +354,7 @@ var _opts = parseOptions();
 
 createGcLinks(_opts, function (err) {
         if (err) {
-                if (verror.hasCauseWithName(err, 'JobDisabled')) {
+                if (verror.hasCauseWithName(err, JOB_DISABLED_ERR)) {
                         LOG.info(err);
                 } else {
                         LOG.fatal(err, 'Error.');
