@@ -109,7 +109,7 @@ function parseOptions() {
         // command line, and use the defaults if all else fails.
         var opts = MOLA_CONFIG_OBJ;
         opts.shards = opts.shards || [];
-        var parser = new getopt.BasicParser('a:d:g:m:no:p:r:t', process.argv);
+        var parser = new getopt.BasicParser('a:d:g:m:no:p:r:tF', process.argv);
 
         while ((option = parser.getopt()) !== undefined) {
                 if (option.error) {
@@ -148,6 +148,9 @@ function parseOptions() {
                 case 't':
                         opts.jobName = 'manta_gc_test';
                         opts.jobRoot = MP + '/manta_gc_test';
+                        break;
+                case 'F':
+                        opts.forceRun = true;
                         break;
                 default:
                         usage('Unknown option: ' + option.option);
@@ -195,6 +198,7 @@ function usage(msg) {
         str += ' [-o object_id]';
         str += ' [-r marlin_reducer_memory]';
         str += ' [-t output_to_test]';
+        str += ' [-F force_run]';
         console.error(str);
         process.exit(1);
 }

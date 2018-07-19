@@ -229,6 +229,12 @@ function getOptions() {
                         helpArg: 'DIR'
                 },
                 {
+                        names: ['forceRun', 'F'],
+                        type: 'bool',
+                        help: 'Run this job regardless of whether or not ' +
+                              'this job is disabled.'
+                },
+                {
                         names: ['help', 'h'],
                         type: 'bool',
                         help: 'Print this help and exit.'
@@ -899,15 +905,20 @@ var toCleanup;
  */
 var completed;
 
-if (CONFIG.disableAllJobs === true) {
-        LOG.info('All jobs are disabled, exiting.');
-        process.exit(exitCode);
+if (userOpts.forceRun === true) {
+        LOG.info('Forcing job run');
+} else {
+        if (CONFIG.disableAllJobs === true) {
+                LOG.info('All jobs are disabled, exiting.');
+                process.exit(exitCode);
+        }
+
+        if (CONFIG.gcEnabled === false) {
+                LOG.info('GC is disabled, exiting.');
+                process.exit(exitCode);
+        }
 }
 
-if (CONFIG.gcEnabled === false) {
-        LOG.info('GC is disabled, exiting.');
-        process.exit(exitCode);
-}
 
 if (!userOpts.file) {
         /*

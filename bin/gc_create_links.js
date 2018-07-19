@@ -60,7 +60,7 @@ var JOB_DISABLED_ERR = 'JobDisabled';
 function parseOptions() {
         var option;
         var opts = {};
-        var parser = new getopt.BasicParser('d:', process.argv);
+        var parser = new getopt.BasicParser('d:F', process.argv);
 
         while ((option = parser.getopt()) !== undefined) {
                 if (option.error) {
@@ -70,6 +70,9 @@ function parseOptions() {
                 switch (option.option) {
                 case 'd':
                         opts.mantaDir = option.optarg;
+                        break;
+                case 'F':
+                        opts.forceRun = true;
                         break;
                 default:
                         usage('Unknown option: ' + option.option);
@@ -92,6 +95,7 @@ function usage(msg) {
         }
         var str  = 'usage: ' + path.basename(process.argv[1]);
         str += ' [-d manta_directory]';
+        str += ' [-F force_run]';
         console.error(str);
         process.exit(1);
 }
@@ -310,14 +314,19 @@ function createGcLinks(opts, cb) {
                 'dir': opts.mantaDir
         };
 
-        if (opts.disableAllJobs === true) {
-                cb(new VE({ 'name': JOB_DISABLED_ERR },
-                        'all jobs are disabled'));
-                return;
-        }
-        if (opts.jobEnabled === false) {
-                cb(new VE({ 'name': JOB_DISABLED_ERR }, 'GC job is disabled'));
-                return;
+        if (opts.forceRun) {
+                LOG.info('Forcing job run');
+        } else {
+                if (opts.disableAllJobs === true) {
+                        cb(new VE({ 'name': JOB_DISABLED_ERR },
+                                'all jobs are disabled'));
+                        return;
+                }
+                if (opts.jobEnabled === false) {
+                        cb(new VE({ 'name': JOB_DISABLED_ERR },
+                                'GC job is disabled'));
+                        return;
+                }
         }
 
         common.getObjectsInDir(gopts, function (err, objs) {
