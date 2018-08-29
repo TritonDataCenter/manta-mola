@@ -23,7 +23,6 @@ var util = require('util');
 var vasync = require('vasync');
 var vstream = require('vstream');
 
-var lib = require('../lib');
 var mpu = require('../lib/mpu');
 
 /*
@@ -228,6 +227,12 @@ function getOptions() {
                               'otherwise, the default cleanup directory ' +
                               'will be used.',
                         helpArg: 'DIR'
+                },
+                {
+                        names: ['forceRun', 'F'],
+                        type: 'bool',
+                        help: 'Run this job regardless of whether or not ' +
+                              'this job is disabled.'
                 },
                 {
                         names: ['help', 'h'],
@@ -899,6 +904,21 @@ var toCleanup;
  * in `toCleanup`.
  */
 var completed;
+
+if (userOpts.forceRun === true) {
+        LOG.info('Forcing job run');
+} else {
+        if (CONFIG.disableAllJobs === true) {
+                LOG.info('All jobs are disabled, exiting.');
+                process.exit(exitCode);
+        }
+
+        if (CONFIG.gcEnabled === false) {
+                LOG.info('GC is disabled, exiting.');
+                process.exit(exitCode);
+        }
+}
+
 
 if (!userOpts.file) {
         /*

@@ -7,7 +7,7 @@
  */
 
 /*
- * Copyright (c) 2017, Joyent, Inc.
+ * Copyright (c) 2018, Joyent, Inc.
  */
 
 /*
@@ -19,6 +19,7 @@ require('../lib/maxsockets')(256);
 
 var assert = require('assert-plus');
 var bunyan = require('bunyan');
+var fs = require('fs');
 var common = require('../lib').common;
 var getopt = require('posix-getopt');
 var manta = require('manta');
@@ -26,8 +27,9 @@ var path = require('path');
 var vasync = require('vasync');
 var stream = require('stream');
 var lstream = require('lstream');
+var verror = require('verror');
 
-var VE = require('verror').VError;
+var VE = verror.VError;
 
 
 var NAME = 'moray_gc_create_links';
@@ -38,6 +40,9 @@ var LOG = bunyan.createLogger({
 });
 var MANTA_CONFIG = (process.env.MANTA_CONFIG ||
                     '/opt/smartdc/common/etc/config.json');
+var MOLA_CONFIG = (process.env.MOLA_CONFIG ||
+                    '/opt/smartdc/mola/etc/config.json');
+var MOLA_CONFIG_OBJ = JSON.parse(fs.readFileSync(MOLA_CONFIG));
 var MANTA_CLIENT = manta.createClientFromFileSync(MANTA_CONFIG, LOG);
 var MANTA_USER = MANTA_CLIENT.user;
 var MANTA_DIR = '/' + MANTA_USER + '/stor/manta_gc/all/do';
@@ -49,12 +54,13 @@ var AUDIT = {
         'startTime': new Date()
 };
 var DIR_CACHE = {};
+var JOB_DISABLED_ERR = 'JobDisabled';
 
 
 function parseOptions() {
         var option;
         var opts = {};
-        var parser = new getopt.BasicParser('d:', process.argv);
+        var parser = new getopt.BasicParser('d:F', process.argv);
 
         while ((option = parser.getopt()) !== undefined) {
                 if (option.error) {
@@ -65,6 +71,9 @@ function parseOptions() {
                 case 'd':
                         opts.mantaDir = option.optarg;
                         break;
+                case 'F':
+                        opts.forceRun = true;
+                        break;
                 default:
                         usage('Unknown option: ' + option.option);
                         break;
@@ -73,6 +82,8 @@ function parseOptions() {
 
         //Set up some defaults...
         opts.mantaDir = opts.mantaDir || MANTA_DIR;
+        opts.jobEnabled = MOLA_CONFIG_OBJ.gcEnabled;
+        opts.disableAllJobs = MOLA_CONFIG_OBJ.disableAllJobs;
 
         return (opts);
 }
@@ -84,6 +95,7 @@ function usage(msg) {
         }
         var str  = 'usage: ' + path.basename(process.argv[1]);
         str += ' [-d manta_directory]';
+        str += ' [-F force_run]';
         console.error(str);
         process.exit(1);
 }
@@ -301,6 +313,22 @@ function createGcLinks(opts, cb) {
                 'client': MANTA_CLIENT,
                 'dir': opts.mantaDir
         };
+
+        if (opts.forceRun) {
+                LOG.info('Forcing job run');
+        } else {
+                if (opts.disableAllJobs === true) {
+                        cb(new VE({ 'name': JOB_DISABLED_ERR },
+                                'all jobs are disabled'));
+                        return;
+                }
+                if (opts.jobEnabled === false) {
+                        cb(new VE({ 'name': JOB_DISABLED_ERR },
+                                'GC job is disabled'));
+                        return;
+                }
+        }
+
         common.getObjectsInDir(gopts, function (err, objs) {
                 if (err && err.code === 'ResourceNotFound') {
                         LOG.info('GC not ready yet: ' + opts.mantaDir +
@@ -336,7 +364,11 @@ var _opts = parseOptions();
 
 createGcLinks(_opts, function (err) {
         if (err) {
-                LOG.fatal(err, 'Error.');
+                if (verror.hasCauseWithName(err, JOB_DISABLED_ERR)) {
+                        LOG.info(err);
+                } else {
+                        LOG.fatal(err, 'Error.');
+                }
         } else {
                 AUDIT.cronFailed = 0;
         }

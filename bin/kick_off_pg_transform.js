@@ -6,7 +6,7 @@
  */
 
 /*
- * Copyright (c) 2017, Joyent, Inc.
+ * Copyright (c) 2018, Joyent, Inc.
  */
 
 var assert = require('assert-plus');
@@ -81,7 +81,7 @@ function parseOptions() {
         // command line, and use the defaults if all else fails.
         var opts = MOLA_CONFIG_OBJ;
         opts.shards = opts.shards || [];
-        var parser = new getopt.BasicParser('a:b:m:no:p:y:', process.argv);
+        var parser = new getopt.BasicParser('a:b:m:no:p:y:F', process.argv);
 
         while ((option = parser.getopt()) !== undefined) {
                 if (option.error) {
@@ -112,6 +112,9 @@ function parseOptions() {
                         opts.pgMapMemory = lib.common.parseNumberOption(
                             option.optarg, '-y', 1, null, usage);
                         break;
+                case 'F':
+                        opts.forceRun = true;
+                        break;
                 default:
                         usage('Unknown option: ' + option.option);
                         break;
@@ -130,6 +133,7 @@ function parseOptions() {
         opts.assetFile = opts.assetFile ||
                 '/opt/smartdc/common/bundle/mola.tar.gz';
 
+        opts.jobEnabled = opts.pgEnabled;
         opts.marlinPathToAsset = opts.assetObject.substring(1);
         opts.marlinAssetObject = opts.assetObject;
 
@@ -166,6 +170,7 @@ function usage(msg) {
         str += ' [-m moray_shard (can be repeated)]';
         str += ' [-n no_job_start]';
         str += ' [-o output_directory_prefix (defaults to object location)]';
+        str += ' [-F force_run]';
         str += '';
         str += 'The backfill object overrides the shard list.';
         console.error(str);
@@ -213,6 +218,9 @@ function startJobForObject(opts, cb) {
         var jopts = {
                 'jobName': jobName,
                 'jobRoot': jjobRoot,
+                'jobEnabled': opts.jobEnabled,
+                'disableAllJobs': opts.disableAllJobs,
+                'forceRun': opts.forceRun,
                 'morayDumpObject': object,
                 'getJobObjects': function (_, subcb) {
                         return (subcb(null, [ object.path ]));

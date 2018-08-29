@@ -159,9 +159,13 @@ function parseOptions() {
          */
         var opts = MOLA_CONFIG_OBJ;
         opts.shards = opts.shards || [];
-        var parser = new getopt.BasicParser('a:bd:g:s:m:no:p:r:t',
+        var parser = new getopt.BasicParser('a:bd:g:s:m:no:p:r:tF',
                                             process.argv);
-        while ((option = parser.getopt()) !== undefined && !option.error) {
+        while ((option = parser.getopt()) !== undefined) {
+                if (option.error) {
+                        usage();
+                }
+
                 switch (option.option) {
                 case 'a':
                         opts.assetFile = option.optarg;
@@ -197,6 +201,9 @@ function parseOptions() {
                         opts.jobName = 'manta_mpu_gc_test';
                         opts.jobRoot = MP + '/manta_mpu_gc_test';
                         break;
+                case 'F':
+                        opts.forceRun = true;
+                        break;
                 default:
                         usage('Unknown option: ' + option.option);
                         break;
@@ -211,6 +218,7 @@ function parseOptions() {
         opts.assetFile = opts.assetFile ||
                 '/opt/smartdc/common/bundle/mola.tar.gz';
 
+        opts.jobEnabled = opts.gcEnabled;
         opts.gcMapDisk = opts.gcMapDisk || 32;
         opts.gcReduceMemory = opts.gcReduceMemory || 8192;
         opts.gcReduceDisk = opts.gcReduceDisk || 32;
@@ -238,6 +246,7 @@ function usage(msg) {
         str += ' [-o object_id]';
         str += ' [-r marlin_reducer_memory]';
         str += ' [-t output_to_test]';
+        str += ' [-F force_run]';
         console.error(str);
         process.exit(1);
 }

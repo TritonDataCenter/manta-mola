@@ -129,3 +129,44 @@ the [cron configuration][cron] and the [manifest file][manifest].
 | (daily-metering)        | meter-previous-day.sh    | metering    |      01:00 |
 
 Also see MANTA-2438.
+
+# Administration
+
+Mola and Mackerel cron jobs can be disabled on an individual or global basis.
+This can be done from the headnode using `sapiadm`. All jobs are enabled by
+default.
+
+All jobs (both mackerel and mola) can be disabled by setting `DISABLE_ALL_JOBS`
+to 'true' in the 'ops' SAPI service, like so:
+```
+$ sapiadm update $(sdc-sapi /services?name=ops | json -Ha uuid) metadata.DISABLE_ALL_JOBS=true
+```
+
+Jobs can be disabled on an individual basis as well. These are the fields that
+can be set to either 'true' or 'false' to disable or enable jobs:
+
+| Manta Job Name                              | Enable/Disable field   |
+| ------------------------------------------- | ---------------------- |
+| all                                         | DISABLE_ALL_JOBS       |
+| audit                                       | AUDIT_ENABLED          |
+| gc, gc-links, moray-gc, mpu-gc, mpu-cleanup | GC_ENABLED             |
+| sql-to-json                                 | PG_ENABLED             |
+| storage-hourly-metering                     | METER_STORAGE_ENABLED  |
+| compute-hourly-metering                     | METER_COMPUTE_ENABLED  |
+| request-hourly-metering                     | METER_REQUEST_ENABLED  |
+| (daily-metering)                            | METER_PREV_DAY_ENABLED |
+
+For example, to disable all of the GC-family jobs you could run this command
+from the headnode:
+```
+$ sapiadm update $(sdc-sapi /services?name=ops | json -Ha uuid) metadata.GC_ENABLED=false
+```
+
+And if you decide to later re-enable GC you can run the same command setting
+`GC_ENABLED` to 'true':
+```
+$ sapiadm update $(sdc-sapi /services?name=ops | json -Ha uuid) metadata.GC_ENABLED=true
+```
+
+The change will be written to the mola or mackerel config files the next time
+that the in-zone config-agent polls SAPI.

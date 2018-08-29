@@ -23,8 +23,10 @@ var assert = require('assert-plus');
 var bunyan = require('bunyan');
 var exec = require('child_process').exec;
 var fs = require('fs');
+var getopt = require('posix-getopt');
 var lib = require('../lib');
 var manta = require('manta');
+var path = require('path');
 var vasync = require('vasync');
 var verror = require('verror');
 var stream = require('stream');
@@ -40,17 +42,15 @@ var LOG = bunyan.createLogger({
 });
 var MANTA_CONFIG = (process.env.MANTA_CONFIG ||
                     '/opt/smartdc/common/etc/config.json');
+var MOLA_CONFIG = (process.env.MOLA_CONFIG ||
+                    '/opt/smartdc/mola/etc/config.json');
+var MOLA_CONFIG_OBJ = JSON.parse(fs.readFileSync(MOLA_CONFIG));
 var MANTA_CLIENT = manta.createClientFromFileSync(MANTA_CONFIG, LOG);
 var MANTA_USER = MANTA_CLIENT.user;
 var MORAY_CLEANUP_PATH = '/' + MANTA_USER + '/stor/manta_gc/moray';
 var PID_FILE = '/var/tmp/moray_gc.pid';
 var CRON_START = new Date();
-var MORAY_CLEANER = lib.createMorayCleaner({ log: LOG, batchSize: 1000 });
-MORAY_CLEANER.on('error', function (err) {
-        LOG.fatal(err);
-        var returnCode = auditCron(err);
-        process.exit(returnCode);
-});
+
 
 
 /*
@@ -80,7 +80,8 @@ function cleanShardOneObject(log, shard, input, cb) {
                  */
                 var mcs = MORAY_CLEANER.cleanStream({
                         shard: shard,
-                        object: input
+                        object: input,
+                        bucket: 'manta_delete_log'
                 });
 
                 mcs.once('error', function (mcsErr) {
@@ -356,6 +357,67 @@ function auditCron(err) {
         return (audit.cronFailed);
 }
 
+function parseOptions() {
+        var option;
+        var opts = {};
+        var parser = new getopt.BasicParser('F', process.argv);
+        while ((option = parser.getopt()) !== undefined) {
+                if (option.error) {
+                        usage();
+                }
+
+                switch (option.option) {
+                case 'F':
+                        opts.forceRun = true;
+                        break;
+                default:
+                        usage('Unknown option: ' + option.option);
+                        break;
+                }
+        }
+
+        opts.jobEnabled = MOLA_CONFIG_OBJ.gcEnabled;
+        opts.disableAllJobs = MOLA_CONFIG_OBJ.disableAllJobs;
+
+        return (opts);
+}
+
+function usage(msg) {
+        if (msg) {
+                console.error(msg);
+        }
+
+        var str  = 'usage: ' + path.basename(process.argv[1]);
+        str += ' [-F force_run]';
+
+        console.error(str);
+        process.exit(1);
+}
+
+///--- Main
+
+var _opts = parseOptions();
+
+if (_opts.forceRun) {
+        LOG.info('Forcing job run');
+} else {
+        if (_opts.disableAllJobs === true) {
+                LOG.info('All jobs are disabled, exiting.');
+                process.exit(0);
+        }
+
+        if (_opts.jobEnabled === false) {
+                LOG.info('GC is disabled, exiting.');
+                process.exit(0);
+        }
+}
+
+var MORAY_CLEANER = lib.createMorayCleaner({ log: LOG, batchSize: 1000 });
+MORAY_CLEANER.on('error', function (err) {
+        LOG.fatal(err);
+        var returnCode = auditCron(err);
+        process.exit(returnCode);
+});
 
 checkAlreadyRunning(function (err) {
         if (err) {
