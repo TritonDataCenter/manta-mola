@@ -32,12 +32,7 @@
     "auditReduceDisk": {{AUDIT_REDUCE_DISK}}{{/AUDIT_REDUCE_DISK}}{{#AUDIT_REDUCE_MEMORY}},
     "auditReduceMemory": {{AUDIT_REDUCE_MEMORY}}{{/AUDIT_REDUCE_MEMORY}}{{#AUDIT_REDUCER_COUNT}},
     "auditReducerCount": {{AUDIT_REDUCER_COUNT}}{{/AUDIT_REDUCER_COUNT}},
-    {{#AUDIT_ENABLED}}
-    "auditEnabled": {{AUDIT_ENABLED}},
-    {{/AUDIT_ENABLED}}
-    {{^AUDIT_ENABLED}}
-    "auditEnabled": true,
-    {{/AUDIT_ENABLED}}{{#CRUFT_MAP_DISK}}
+    "auditEnabled": {{#AUDIT_ENABLED}}{{AUDIT_ENABLED}}{{/AUDIT_ENABLED}}{{^AUDIT_ENABLED}}true{{/AUDIT_ENABLED}}{{#CRUFT_MAP_DISK}},
     "cruftMapDisk": {{CRUFT_MAP_DISK}}{{/CRUFT_MAP_DISK}}{{#CRUFT_REDUCE_DISK}},
     "cruftReduceDisk": {{CRUFT_REDUCE_DISK}}{{/CRUFT_REDUCE_DISK}}{{#CRUFT_REDUCE_MEMORY}},
     "cruftReduceMemory": {{CRUFT_REDUCE_MEMORY}}{{/CRUFT_REDUCE_MEMORY}}{{#CRUFT_REDUCER_COUNT}},
@@ -45,24 +40,10 @@
     "gcMapDisk": {{GC_MAP_DISK}}{{/GC_MAP_DISK}}{{#GC_REDUCE_DISK}},
     "gcReduceDisk": {{GC_REDUCE_DISK}}{{/GC_REDUCE_DISK}}{{#GC_REDUCE_MEMORY}},
     "gcReduceMemory": {{GC_REDUCE_MEMORY}}{{/GC_REDUCE_MEMORY}},
-    {{#GC_ENABLED}}
-    "gcEnabled": {{GC_ENABLED}},
-    {{/GC_ENABLED}}
-    {{^GC_ENABLED}}
-    "gcEnabled": true,
-    {{/GC_ENABLED}}{{#REBALANCE_MEMORY}}
+    "gcEnabled": {{#GC_ENABLED}}{{GC_ENABLED}}{{/GC_ENABLED}}{{^GC_ENABLED}}true{{/GC_ENABLED}}{{#REBALANCE_MEMORY}},
     "rebalanceMemory": {{REBALANCE_MEMORY}}{{/REBALANCE_MEMORY}}{{#PG_MAP_DISK}},
     "pgMapDisk": {{PG_MAP_DISK}}{{/PG_MAP_DISK}}{{#PG_MAP_MEMORY}},
     "pgMapMemory": {{PG_MAP_MEMORY}}{{/PG_MAP_MEMORY}},
-    {{#PG_ENABLED}}
-    "pgEnabled": {{PG_ENABLED}},
-    {{/PG_ENABLED}}
-    {{^PG_ENABLED}}
-    "pgEnabled": true,
-    {{/PG_ENABLED}}
-    {{#DISABLE_ALL_JOBS}}
-    "disableAllJobs": {{DISABLE_ALL_JOBS}}
-    {{/DISABLE_ALL_JOBS}}{{^DISABLE_ALL_JOBS}}
-    "disableAllJobs": false
-    {{/DISABLE_ALL_JOBS}}
+    "pgEnabled": {{#PG_ENABLED}}{{PG_ENABLED}}{{/PG_ENABLED}}{{^PG_ENABLED}}true{{/PG_ENABLED}},
+    "disableAllJobs": {{#DISABLE_ALL_JOBS}}{{DISABLE_ALL_JOBS}}{{/DISABLE_ALL_JOBS}}{{^DISABLE_ALL_JOBS}}false{{/DISABLE_ALL_JOBS}}
 }
