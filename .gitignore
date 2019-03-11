@@ -1,11 +1,13 @@
+/make_stamps
 /node_modules
 /tmp
-build
+/bits
+/build
 docs/*.json
 docs/*.html
 cscope.in.out
 cscope.po.out
 cscope.out
-smf/manifests/bapi.xml
 npm-debug.log
 abandoned
+mola-pkg-*.gz
