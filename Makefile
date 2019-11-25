@@ -75,6 +75,13 @@ BUILDIMAGE_PKGSRC = redis-2.4.13 zookeeper-client-3.4.3
 AGENTS		= amon config mackerel registrar
 
 #
+# Force mackerel to be built from this specific branch, needed
+# because mantav1 should not mix/match with mantav2 changes
+#
+$(MACKEREL_PREBUILT_TARGETS): AGENT_PREBUILT_BRANCH=MANTA-4776-mv1
+
+
+#
 # v8plus uses the CTF tools as part of its build, but they can safely be
 # overridden here so that this works in dev zones without them.
 # See marlin.git Makefile.
