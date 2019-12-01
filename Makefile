@@ -78,7 +78,7 @@ AGENTS		= amon config mackerel registrar
 # Force mackerel to be built from this specific branch, needed
 # because mantav1 should not mix/match with mantav2 changes
 #
-$(MACKEREL_PREBUILT_TARGETS): AGENT_PREBUILT_BRANCH=MANTA-4776-mv1
+$(MACKEREL_PREBUILT_TARGETS): AGENT_PREBUILT_BRANCH=mantav1
 
 
 #
