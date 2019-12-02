@@ -69,17 +69,10 @@ ROOT                    := $(shell pwd)
 RELSTAGEDIR                  := /tmp/$(NAME)-$(STAMP)
 
 BASE_IMAGE_UUID = fd2cc906-8938-11e3-beab-4359c665ac99
-BUILDIMAGE_NAME = mantav1-ops
+BUILDIMAGE_NAME = mantav2-ops
 BUILDIMAGE_DESC	= Manta ops
 BUILDIMAGE_PKGSRC = redis-2.4.13 zookeeper-client-3.4.3
 AGENTS		= amon config mackerel registrar
-
-#
-# Force mackerel to be built from this specific branch, needed
-# because mantav1 should not mix/match with mantav2 changes
-#
-$(MACKEREL_PREBUILT_TARGETS): AGENT_PREBUILT_BRANCH=mantav1
-
 
 #
 # v8plus uses the CTF tools as part of its build, but they can safely be
