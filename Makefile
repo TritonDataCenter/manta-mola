@@ -5,7 +5,7 @@
 #
 
 #
-# Copyright 2019 Joyent, Inc.
+# Copyright 2020 Joyent, Inc.
 #
 
 #
@@ -74,12 +74,8 @@ BUILDIMAGE_DESC	= Manta ops
 BUILDIMAGE_PKGSRC = redis-2.4.13 zookeeper-client-3.4.3
 AGENTS		= amon config mackerel registrar
 
-#
-# Force mackerel to be built from this specific branch, needed
-# because mantav1 should not mix/match with mantav2 changes
-#
-$(MACKEREL_PREBUILT_TARGETS): AGENT_PREBUILT_BRANCH=mantav1
-
+# For mantav1, specify the branch to compare copyrights with
+ENGBLD_CHECK_COPYRIGHT_ARGS = -b mantav1
 
 #
 # v8plus uses the CTF tools as part of its build, but they can safely be
@@ -155,3 +151,9 @@ else
 endif
 include ./deps/eng/tools/mk/Makefile.smf.targ
 include ./deps/eng/tools/mk/Makefile.targ
+
+#
+# Force mackerel to be built from this specific branch, needed
+# because mantav1 should not mix/match with mantav2 changes
+#
+$(MACKEREL_PREBUILT_TARGETS): AGENT_PREBUILT_BRANCH=mantav1
