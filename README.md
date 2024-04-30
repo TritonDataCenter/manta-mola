@@ -6,13 +6,14 @@
 
 <!--
     Copyright 2019 Joyent, Inc.
+    Copyright 2024 MNX CLoud, Inc.
 -->
 
 # manta-mola
 
-This repository is part of the Joyent Manta project.  For contribution
+This repository is part of the Triton Manta project.  For contribution
 guidelines, issues, and general documentation, visit the main
-[Manta](http://github.com/joyent/manta) project page.
+[Manta](http://github.com/TritonDataCenter/manta) project page.
 
 Mola is one of two things:
 
@@ -26,8 +27,8 @@ This package contains the source code for #2.
 
 There are currently two active branches of this repository, for the two
 active major versions of Manta. See the [mantav2 overview
-document](https://github.com/joyent/manta/blob/master/docs/mantav2.md) for
-details on major Manta versions.
+document](https://github.com/TritonDataCenter/manta/blob/master/docs/mantav2.md)
+for details on major Manta versions.
 
 - [`master`](../../tree/master/) - For development of mantav2, the latest
   version of Manta. This is the version used by Triton.
@@ -59,7 +60,7 @@ details on major Manta versions.
 
 To check out and run the tests:
 
-    git clone git@github.com:joyent/manta-mola.git
+    git clone git@github.com:TritonDataCenter/manta-mola.git
     cd mola
     make all
     make test
