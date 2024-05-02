@@ -11,6 +11,7 @@ apisections:
 
 <!--
     Copyright (c) 2018, Joyent, Inc.
+    Copyright 2024 MNX Cloud, Inc.
 -->
 
 # Overview
@@ -206,5 +207,5 @@ link its completed input to:
 
 # See Also
 
-* [RFD 65](https://github.com/joyent/rfd/tree/master/rfd/0065): Multipart
+* [RFD 65](https://github.com/TritonDataCenter/rfd/tree/master/rfd/0065): Multipart
 Uploads for Manta.
